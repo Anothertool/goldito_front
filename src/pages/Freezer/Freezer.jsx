@@ -1,13 +1,7 @@
-import { Box, Heading } from '@chakra-ui/react'
+import FreezerList from '@/components/Freezer/FreezerList'
 
 function Freezer() {
-  return (
-    <Box px="6" py="8">
-      <Heading size="lg" color="#3a3630">
-        Freezer
-      </Heading>
-    </Box>
-  )
+  return <FreezerList />
 }
 
 export default Freezer

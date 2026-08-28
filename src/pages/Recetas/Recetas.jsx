@@ -1,13 +1,7 @@
-import { Box, Heading } from '@chakra-ui/react'
+import RecipeList from '@/components/Recetas/RecipeList'
 
 function Recetas() {
-  return (
-    <Box px="6" py="8">
-      <Heading size="lg" color="#3a3630">
-        Recetas
-      </Heading>
-    </Box>
-  )
+  return <RecipeList />
 }
 
 export default Recetas
