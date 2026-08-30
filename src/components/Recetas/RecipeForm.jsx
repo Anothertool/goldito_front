@@ -478,7 +478,7 @@ function RecipeForm() {
                                 </Text>
                                 {!photo && (
                                     <Text fontSize="10px" color="#a19a91">
-                                        JPG, PNG, WEBP…
+                                        JPG, PNG, WEBP… Máximo 10 MB
                                     </Text>
                                 )}
                             </Flex>

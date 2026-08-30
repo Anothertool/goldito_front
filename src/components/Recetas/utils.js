@@ -1,5 +1,7 @@
 import * as Yup from 'yup'
 
+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
 const emptyIngredient = {
     ingredient_id: '',
     name: '',
@@ -38,6 +40,11 @@ export const validationSchema = Yup.object({
             'image-file',
             'Selecciona un archivo de imagen válido',
             (value) => !value || value.type?.startsWith('image/'),
+        )
+        .test(
+            'image-size',
+            'La imagen no puede superar los 10 MB',
+            (value) => !value || value.size <= MAX_IMAGE_SIZE,
         ),
     name: Yup.string()
         .trim()
