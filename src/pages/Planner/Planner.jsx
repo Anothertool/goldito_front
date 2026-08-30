@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { mealPlansApi } from '@/api'
 import PlannerForm from '@/components/Planner/PlannerForm'
 import MealPlanView from '@/components/Planner/MealPlanView'
@@ -7,11 +8,15 @@ import { getClosestMonday } from '@/components/Planner/plannerDates'
 import '@/components/Planner/planner.css'
 
 function Planner() {
-    const [settings, setSettings] = useState({
-        start_date: getClosestMonday(),
-        days: 5,
-    })
-    const [mealPlan, setMealPlan] = useState(null)
+    const location = useLocation()
+    const restoredState = location.state
+    const [settings, setSettings] = useState(
+        restoredState?.settings ?? {
+            start_date: getClosestMonday(),
+            days: 5,
+        },
+    )
+    const [mealPlan, setMealPlan] = useState(restoredState?.mealPlan ?? null)
     const generatePlan = useMutation(mealPlansApi.mutations.generate())
 
     const handleGenerate = (nextSettings = settings) => {
@@ -28,6 +33,7 @@ function Planner() {
         return (
             <MealPlanView
                 plan={mealPlan}
+                settings={settings}
                 isRegenerating={generatePlan.isPending}
                 error={generatePlan.error}
                 onBack={() => {

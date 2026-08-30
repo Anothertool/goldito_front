@@ -654,68 +654,6 @@
   font-size: 9px;
 }
 
-.food-component-active-toggle {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 13px;
-  background: rgb(255 253 249 / 55%);
-  border: 1px solid var(--component-border);
-  border-radius: 11px;
-  cursor: pointer;
-}
-
-.food-component-active-toggle > span {
-  display: grid;
-}
-
-.food-component-active-toggle strong {
-  font-size: 12px;
-}
-
-.food-component-active-toggle small {
-  color: var(--component-muted);
-  font-size: 9px;
-}
-
-.food-component-active-toggle input {
-  position: absolute;
-  opacity: 0;
-}
-
-.food-component-active-toggle i {
-  position: relative;
-  width: 40px;
-  height: 23px;
-  flex: 0 0 auto;
-  background: #cec8bf;
-  border-radius: 20px;
-  transition: background 0.2s;
-}
-
-.food-component-active-toggle i::after {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 17px;
-  height: 17px;
-  background: white;
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
-  content: '';
-  transition: transform 0.2s;
-}
-
-.food-component-active-toggle input:checked + i {
-  background: var(--component-green);
-}
-
-.food-component-active-toggle input:checked + i::after {
-  transform: translateX(17px);
-}
-
 .food-component-submit-error {
   padding: 10px 12px;
   color: #9c4141;

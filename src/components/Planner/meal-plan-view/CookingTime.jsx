@@ -24,10 +24,7 @@ function TimeDetail({ title, icon, minutes, items }) {
                     {items.map((item, index) => (
                         <Flex
                             as="li"
-                            key={
-                                item?.id ??
-                                `${itemName(item, 'tiempo')}-${index}`
-                            }
+                            key={`${item?.recipe?.id ?? item?.recipe_id ?? item?.id ?? itemName(item, 'tiempo')}-${index}`}
                             justify="space-between"
                             gap="2"
                             color="#777169"

@@ -37,7 +37,14 @@ const SUMMARY = [
     ['white_meat', 'Carne blanca', PiDrop],
 ]
 
-function MealPlanView({ plan, isRegenerating, error, onBack, onRegenerate }) {
+function MealPlanView({
+    plan,
+    settings,
+    isRegenerating,
+    error,
+    onBack,
+    onRegenerate,
+}) {
     const navigate = useNavigate()
     const groupedDays = (Array.isArray(plan.items) ? plan.items : []).reduce(
         (map, item) => {
@@ -198,11 +205,21 @@ function MealPlanView({ plan, isRegenerating, error, onBack, onRegenerate }) {
                             <SimpleGrid columns={items.length || 1}>
                                 {items.map((item, index) => (
                                     <RecipeItem
-                                        key={`${item.meal_type ?? 'meal'}-${item.recipe?.id ?? index}`}
+                                        key={`${date}-${item.recipe?.id ?? item.recipe_id ?? 'recipe'}-${index}`}
                                         item={item}
                                         onOpen={(recipeId) =>
                                             navigate(
                                                 `/recetas/${recipeId}/editar`,
+                                                {
+                                                    state: {
+                                                        returnTo:
+                                                            '/planificador',
+                                                        returnState: {
+                                                            mealPlan: plan,
+                                                            settings,
+                                                        },
+                                                    },
+                                                },
                                             )
                                         }
                                     />

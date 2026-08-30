@@ -65,10 +65,7 @@ function ShoppingList({ items }) {
                             {list.map((item, index) => (
                                 <Flex
                                     as="li"
-                                    key={
-                                        item?.id ??
-                                        `${itemName(item, 'compra')}-${index}`
-                                    }
+                                    key={`${item?.recipe?.id ?? item?.recipe_id ?? item?.id ?? itemName(item, 'compra')}-${index}`}
                                     justify="space-between"
                                     gap="3"
                                     color="#656159"

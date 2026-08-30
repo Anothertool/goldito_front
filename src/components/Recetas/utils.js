@@ -1,13 +1,11 @@
 import * as Yup from 'yup'
+import {
+    getIngredientInitialValues,
+    ingredientsSchema,
+    toIngredientsPayload,
+} from '@/components/Ingredients/utils'
 
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
-
-const emptyIngredient = {
-    ingredient_id: '',
-    name: '',
-    quantity: '',
-    unit: '',
-}
 
 const emptyComponent = {
     component_id: '',
@@ -64,26 +62,7 @@ export const validationSchema = Yup.object({
     ),
     instructions: Yup.string(),
     tags: Yup.array().of(Yup.number().integer().positive()),
-    ingredients: Yup.array().of(
-        Yup.object({
-            ingredient_id: nullableNumber(
-                Yup.number().nullable().integer().positive(),
-            ),
-            name: Yup.string().trim(),
-            quantity: nullableNumber(
-                Yup.number()
-                    .nullable()
-                    .typeError('Introduce una cantidad válida')
-                    .positive('Debe ser mayor que 0'),
-            ),
-            unit: Yup.string().trim(),
-        }).test(
-            'ingredient-reference',
-            'Selecciona o escribe un ingrediente',
-            (ingredient) =>
-                Boolean(ingredient?.ingredient_id || ingredient?.name?.trim()),
-        ),
-    ),
+    ingredients: ingredientsSchema,
     components: Yup.array().of(
         Yup.object({
             component_id: Yup.number()
@@ -116,14 +95,7 @@ export function getRecipeInitialValues(recipe) {
         active_time_minutes: recipe.active_time_minutes ?? '',
         instructions: recipe.instructions ?? '',
         tags: (recipe.tags ?? []).map(getId).map(Number),
-        ingredients: (recipe.ingredients ?? []).map((item) => ({
-            ingredient_id: getOptionalId(
-                item.ingredient_id ?? item.ingredient?.id,
-            ),
-            name: item.name ?? item.ingredient?.name ?? '',
-            quantity: item.quantity ?? '',
-            unit: item.unit ?? '',
-        })),
+        ingredients: getIngredientInitialValues(recipe.ingredients),
         components: (recipe.components ?? []).map((item) => ({
             component_id: getOptionalId(
                 item.component_id ?? item.component?.id ?? item.id,
@@ -147,24 +119,7 @@ export function toRecipePayload(values) {
                 : Number(values.active_time_minutes),
         instructions: values.instructions.trim(),
         tags: values.tags.map(Number),
-        ingredients: values.ingredients.map((ingredient) => {
-            const base = {}
-            const unit = ingredient.unit?.trim()
-
-            if (ingredient.quantity !== '' && ingredient.quantity !== null) {
-                base.quantity = Number(ingredient.quantity)
-            }
-            if (unit) base.unit = unit
-
-            if (ingredient.ingredient_id) {
-                return {
-                    ...base,
-                    ingredient_id: Number(ingredient.ingredient_id),
-                }
-            }
-
-            return { ...base, name: ingredient.name.trim() }
-        }),
+        ingredients: toIngredientsPayload(values.ingredients),
         components: values.components.map((component) => ({
             component_id: Number(component.component_id),
             portions: Number(component.portions),
@@ -173,5 +128,4 @@ export function toRecipePayload(values) {
     }
 }
 
-export const createEmptyIngredient = () => ({ ...emptyIngredient })
 export const createEmptyComponent = () => ({ ...emptyComponent })

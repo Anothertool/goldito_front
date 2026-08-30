@@ -1,205 +1,276 @@
 import { useMemo } from 'react'
-import { getIn, useFormik } from 'formik'
+import { FormikProvider, getIn, useFormik } from 'formik'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
+import { PiArrowLeft, PiCookingPot, PiSnowflake } from 'react-icons/pi'
+import { componentsApi, ingredientsApi } from '@/api'
+import IngredientsField from '@/components/Ingredients/IngredientsField'
 import {
-  PiArrowLeft,
-  PiCookingPot,
-  PiSnowflake,
-} from 'react-icons/pi'
-import { componentsApi } from '@/api'
-import {
-  getComponentInitialValues,
-  toComponentPayload,
-  validationSchema,
+    getComponentInitialValues,
+    toComponentPayload,
+    validationSchema,
 } from './utils'
 import './food-components.css'
 
 function FieldError({ formik, name }) {
-  const error = getIn(formik.errors, name)
-  const touched = getIn(formik.touched, name)
-  if (!touched || !error || typeof error !== 'string') return null
-  return <span className="food-component-field-error">{error}</span>
+    const error = getIn(formik.errors, name)
+    const touched = getIn(formik.touched, name)
+    if (!touched || !error || typeof error !== 'string') return null
+    return <span className="food-component-field-error">{error}</span>
 }
 
 function getApiError(apiErrors) {
-  if (!apiErrors) return 'No se ha podido guardar el componente.'
-  if (typeof apiErrors === 'string') return apiErrors
-  if (apiErrors.detail) return apiErrors.detail
+    if (!apiErrors) return 'No se ha podido guardar el componente.'
+    if (typeof apiErrors === 'string') return apiErrors
+    if (apiErrors.detail) return apiErrors.detail
 
-  const firstError = Object.values(apiErrors).flat()[0]
-  return firstError ?? 'No se ha podido guardar el componente.'
+    const firstError = Object.values(apiErrors).flat()[0]
+    return firstError ?? 'No se ha podido guardar el componente.'
 }
 
 function FoodComponentForm() {
-  const navigate = useNavigate()
-  const { componentId } = useParams()
-  const isEditing = Boolean(componentId)
-  const componentQuery = useQuery(componentsApi.queries.detail(componentId))
-  const createComponent = useMutation(componentsApi.mutations.create())
-  const updateComponent = useMutation(componentsApi.mutations.partialUpdate())
-  const formInitialValues = useMemo(
-    () => getComponentInitialValues(componentQuery.data),
-    [componentQuery.data],
-  )
-
-  const formik = useFormik({
-    initialValues: formInitialValues,
-    validationSchema,
-    enableReinitialize: true,
-    onSubmit: async (values, helpers) => {
-      helpers.setStatus(null)
-
-      try {
-        const payload = toComponentPayload(values)
-        if (isEditing) {
-          await updateComponent.mutateAsync({ id: componentId, data: payload })
-        } else {
-          await createComponent.mutateAsync(payload)
-        }
-        navigate('/componentes')
-      } catch (error) {
-        const apiErrors = error.response?.data
-        if (apiErrors?.name) {
-          helpers.setFieldError(
-            'name',
-            Array.isArray(apiErrors.name) ? apiErrors.name.join(' ') : apiErrors.name,
-          )
-        }
-        helpers.setStatus(getApiError(apiErrors))
-      }
-    },
-  })
-
-  const isSaving = createComponent.isPending || updateComponent.isPending
-
-  if (isEditing && componentQuery.isPending) {
-    return <div className="food-component-form-state"><span className="food-components-spinner" />Cargando componente…</div>
-  }
-
-  if (isEditing && componentQuery.isError) {
-    return (
-      <div className="food-component-form-state food-components-state--error">
-        <p>No hemos podido abrir este componente.</p>
-        <button type="button" onClick={() => navigate('/componentes')}>Volver al listado</button>
-      </div>
+    const navigate = useNavigate()
+    const { componentId } = useParams()
+    const isEditing = Boolean(componentId)
+    const componentQuery = useQuery(componentsApi.queries.detail(componentId))
+    const createComponent = useMutation(componentsApi.mutations.create())
+    const updateComponent = useMutation(componentsApi.mutations.partialUpdate())
+    const ingredientsQuery = useQuery(
+        ingredientsApi.queries.list({ page_size: 100, ordering: 'name' }),
     )
-  }
+    const ingredients = Array.isArray(ingredientsQuery.data)
+        ? ingredientsQuery.data
+        : (ingredientsQuery.data?.results ?? [])
+    const formInitialValues = useMemo(
+        () => getComponentInitialValues(componentQuery.data),
+        [componentQuery.data],
+    )
 
-  return (
-    <section className="food-component-form-screen">
-      <header className="food-component-form-header">
-        <button type="button" className="food-component-back" onClick={() => navigate('/componentes')} aria-label="Volver">
-          <PiArrowLeft />
-        </button>
-        <h1>{isEditing ? 'Editar componente' : 'Crear componente'}</h1>
-        <button type="submit" form="food-component-form" className="food-component-save" disabled={isSaving}>
-          {isSaving ? 'Guardando…' : 'Guardar'}
-        </button>
-      </header>
+    const formik = useFormik({
+        initialValues: formInitialValues,
+        validationSchema,
+        enableReinitialize: true,
+        onSubmit: async (values, helpers) => {
+            helpers.setStatus(null)
 
-      <form id="food-component-form" className="food-component-form" onSubmit={formik.handleSubmit} noValidate>
-        <div className="food-component-form-hero">
-          <span><PiCookingPot /></span>
-          <div>
-            <strong>Preparación reutilizable</strong>
-            <p>Crea bases, salsas o guarniciones para usarlas en varias recetas.</p>
-          </div>
-        </div>
+            try {
+                const payload = toComponentPayload(values)
+                if (isEditing) {
+                    await updateComponent.mutateAsync({
+                        id: componentId,
+                        data: payload,
+                    })
+                } else {
+                    await createComponent.mutateAsync(payload)
+                }
+                navigate('/componentes')
+            } catch (error) {
+                const apiErrors = error.response?.data
+                if (apiErrors?.name) {
+                    helpers.setFieldError(
+                        'name',
+                        Array.isArray(apiErrors.name)
+                            ? apiErrors.name.join(' ')
+                            : apiErrors.name,
+                    )
+                }
+                helpers.setStatus(getApiError(apiErrors))
+            }
+        },
+    })
 
-        <div className="food-component-form-field">
-          <label htmlFor="name">Nombre del componente</label>
-          <input
-            id="name"
-            name="name"
-            value={formik.values.name}
-            onChange={formik.handleChange}
-            onBlur={formik.handleBlur}
-            maxLength="150"
-            placeholder="Ej: Salsa de curry"
-            className={formik.touched.name && formik.errors.name ? 'has-error' : ''}
-          />
-          <FieldError formik={formik} name="name" />
-        </div>
+    const isSaving = createComponent.isPending || updateComponent.isPending
 
-        <div className="food-component-form-field">
-          <label htmlFor="description">Descripción <span>(opcional)</span></label>
-          <textarea
-            id="description"
-            name="description"
-            value={formik.values.description}
-            onChange={formik.handleChange}
-            onBlur={formik.handleBlur}
-            rows="4"
-            placeholder="Describe brevemente esta preparación…"
-          />
-        </div>
-
-        <section className="food-component-life-section">
-          <div className="food-component-life-heading">
-            <h2>Conservación</h2>
-            <p>Déjalo vacío si todavía no lo sabes.</p>
-          </div>
-          <div className="food-component-life-grid">
-            <div className="food-component-life-card food-component-life-card--fridge">
-              <span className="food-component-life-icon">F</span>
-              <label htmlFor="fridge_life_days">Días en nevera</label>
-              <div>
-                <input
-                  id="fridge_life_days"
-                  name="fridge_life_days"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formik.values.fridge_life_days}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  placeholder="3"
-                />
-                <span>días</span>
-              </div>
-              <FieldError formik={formik} name="fridge_life_days" />
+    if (isEditing && componentQuery.isPending) {
+        return (
+            <div className="food-component-form-state">
+                <span className="food-components-spinner" />
+                Cargando componente…
             </div>
-            <div className="food-component-life-card food-component-life-card--storage">
-              <span className="food-component-life-icon"><PiSnowflake /></span>
-              <label htmlFor="storage_life_days">Días en storage</label>
-              <div>
-                <input
-                  id="storage_life_days"
-                  name="storage_life_days"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formik.values.storage_life_days}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  placeholder="30"
-                />
-                <span>días</span>
-              </div>
-              <FieldError formik={formik} name="storage_life_days" />
+        )
+    }
+
+    if (isEditing && componentQuery.isError) {
+        return (
+            <div className="food-component-form-state food-components-state--error">
+                <p>No hemos podido abrir este componente.</p>
+                <button type="button" onClick={() => navigate('/componentes')}>
+                    Volver al listado
+                </button>
             </div>
-          </div>
-        </section>
+        )
+    }
 
-        <label className="food-component-active-toggle">
-          <span>
-            <strong>Componente activo</strong>
-            <small>Podrás seleccionarlo en recetas y en storage.</small>
-          </span>
-          <input type="checkbox" name="is_active" checked={formik.values.is_active} onChange={formik.handleChange} />
-          <i aria-hidden="true" />
-        </label>
+    return (
+        <FormikProvider value={formik}>
+            <section className="food-component-form-screen">
+                <header className="food-component-form-header">
+                    <button
+                        type="button"
+                        className="food-component-back"
+                        onClick={() => navigate('/componentes')}
+                        aria-label="Volver"
+                    >
+                        <PiArrowLeft />
+                    </button>
+                    <h1>
+                        {isEditing ? 'Editar componente' : 'Crear componente'}
+                    </h1>
+                    <button
+                        type="submit"
+                        form="food-component-form"
+                        className="food-component-save"
+                        disabled={isSaving}
+                    >
+                        {isSaving ? 'Guardando…' : 'Guardar'}
+                    </button>
+                </header>
 
-        {formik.status && <div className="food-component-submit-error" role="alert">{formik.status}</div>}
+                <form
+                    id="food-component-form"
+                    className="food-component-form"
+                    onSubmit={formik.handleSubmit}
+                    noValidate
+                >
+                    <div className="food-component-form-hero">
+                        <span>
+                            <PiCookingPot />
+                        </span>
+                        <div>
+                            <strong>Preparación reutilizable</strong>
+                            <p>
+                                Crea bases, salsas o guarniciones para usarlas
+                                en varias recetas.
+                            </p>
+                        </div>
+                    </div>
 
-        <button type="submit" className="food-component-primary-button" disabled={isSaving}>
-          <PiCookingPot />
-          {isSaving ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Crear componente'}
-        </button>
-      </form>
-    </section>
-  )
+                    <div className="food-component-form-field">
+                        <label htmlFor="name">Nombre del componente</label>
+                        <input
+                            id="name"
+                            name="name"
+                            value={formik.values.name}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            maxLength="150"
+                            placeholder="Ej: Salsa de curry"
+                            className={
+                                formik.touched.name && formik.errors.name
+                                    ? 'has-error'
+                                    : ''
+                            }
+                        />
+                        <FieldError formik={formik} name="name" />
+                    </div>
+
+                    <IngredientsField
+                        formik={formik}
+                        ingredientOptions={ingredients}
+                        datalistId="component-ingredient-options"
+                    />
+
+                    <div className="food-component-form-field">
+                        <label htmlFor="description">
+                            Descripción <span>(opcional)</span>
+                        </label>
+                        <textarea
+                            id="description"
+                            name="description"
+                            value={formik.values.description}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            rows="4"
+                            placeholder="Describe brevemente esta preparación…"
+                        />
+                    </div>
+
+                    <section className="food-component-life-section">
+                        <div className="food-component-life-heading">
+                            <h2>Conservación</h2>
+                            <p>Déjalo vacío si todavía no lo sabes.</p>
+                        </div>
+                        <div className="food-component-life-grid">
+                            <div className="food-component-life-card food-component-life-card--fridge">
+                                <span className="food-component-life-icon">
+                                    F
+                                </span>
+                                <label htmlFor="fridge_life_days">
+                                    Días en nevera
+                                </label>
+                                <div>
+                                    <input
+                                        id="fridge_life_days"
+                                        name="fridge_life_days"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={formik.values.fridge_life_days}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        placeholder="3"
+                                    />
+                                    <span>días</span>
+                                </div>
+                                <FieldError
+                                    formik={formik}
+                                    name="fridge_life_days"
+                                />
+                            </div>
+                            <div className="food-component-life-card food-component-life-card--storage">
+                                <span className="food-component-life-icon">
+                                    <PiSnowflake />
+                                </span>
+                                <label htmlFor="freezer_life_days">
+                                    Días en congelador
+                                </label>
+                                <div>
+                                    <input
+                                        id="freezer_life_days"
+                                        name="freezer_life_days"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={formik.values.freezer_life_days}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        placeholder="30"
+                                    />
+                                    <span>días</span>
+                                </div>
+                                <FieldError
+                                    formik={formik}
+                                    name="freezer_life_days"
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    {formik.status && (
+                        <div
+                            className="food-component-submit-error"
+                            role="alert"
+                        >
+                            {formik.status}
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        className="food-component-primary-button"
+                        disabled={isSaving}
+                    >
+                        <PiCookingPot />
+                        {isSaving
+                            ? 'Guardando…'
+                            : isEditing
+                              ? 'Guardar cambios'
+                              : 'Crear componente'}
+                    </button>
+                </form>
+            </section>
+        </FormikProvider>
+    )
 }
 
 export default FoodComponentForm

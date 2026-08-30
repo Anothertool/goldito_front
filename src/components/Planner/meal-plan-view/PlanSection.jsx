@@ -35,10 +35,7 @@ function PlanSection({ icon, iconColor, title, items, emptyText }) {
                         return (
                             <Flex
                                 as="li"
-                                key={
-                                    item?.id ??
-                                    `${itemName(item, 'item')}-${index}`
-                                }
+                                key={`${item?.recipe?.id ?? item?.recipe_id ?? item?.id ?? itemName(item, 'item')}-${index}`}
                                 justify="space-between"
                                 gap="3"
                                 color="#656159"

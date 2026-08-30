@@ -13,7 +13,7 @@ import {
 } from '@chakra-ui/react'
 import { FieldArray, FormikProvider, getIn, useFormik } from 'formik'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
     PiArrowLeft,
     PiCamera,
@@ -24,15 +24,14 @@ import {
     PiX,
 } from 'react-icons/pi'
 import { componentsApi, ingredientsApi, recipeTagsApi, recipesApi } from '@/api'
+import IngredientsField from '@/components/Ingredients/IngredientsField'
 import {
     createEmptyComponent,
-    createEmptyIngredient,
     getRecipeInitialValues,
     toRecipePayload,
     validationSchema,
 } from './utils'
 
-const UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta']
 const C = {
     ink: '#302d28',
     muted: '#777168',
@@ -189,8 +188,12 @@ const Option = (props) => <Box as="option" {...props} />
 
 function RecipeForm() {
     const navigate = useNavigate()
+    const location = useLocation()
     const { recipeId } = useParams()
     const isEditing = Boolean(recipeId)
+    const returnTo = location.state?.returnTo ?? '/recetas'
+    const returnState = location.state?.returnState
+    const navigateBack = () => navigate(returnTo, { state: returnState })
     const [selectedTag, setSelectedTag] = useState('')
     const [newTagName, setNewTagName] = useState('')
     const [tagCreatorOpen, setTagCreatorOpen] = useState(false)
@@ -256,7 +259,7 @@ function RecipeForm() {
                         data: imageData,
                     })
                 }
-                navigate('/recetas')
+                navigateBack()
             } catch (error) {
                 const errors = normalizeErrors(error.response?.data)
                 const fieldErrors =
@@ -339,11 +342,7 @@ function RecipeForm() {
                 color={C.muted}
             >
                 <Text>No hemos podido abrir esta receta.</Text>
-                <Button
-                    bg={C.green}
-                    color="white"
-                    onClick={() => navigate('/recetas')}
-                >
+                <Button bg={C.green} color="white" onClick={navigateBack}>
                     Volver al listado
                 </Button>
             </Flex>
@@ -375,7 +374,7 @@ function RecipeForm() {
                         color={C.ink}
                         bg="transparent"
                         aria-label="Volver"
-                        onClick={() => navigate('/recetas')}
+                        onClick={navigateBack}
                     >
                         <PiArrowLeft />
                     </Button>
@@ -817,183 +816,11 @@ function RecipeForm() {
                         )}
                     </FormField>
 
-                    <FieldArray name="ingredients">
-                        {({ push, remove }) => (
-                            <Box
-                                as="section"
-                                p="13px 12px 10px"
-                                bg="rgba(255,253,249,.48)"
-                                border="1px solid"
-                                borderColor={C.border}
-                                borderRadius="12px"
-                            >
-                                <Flex
-                                    align="center"
-                                    justify="space-between"
-                                    mb="9px"
-                                >
-                                    <Heading as="h2" fontSize="12px">
-                                        Ingredientes
-                                    </Heading>
-                                    <Text
-                                        minW="22px"
-                                        px="6px"
-                                        py="2px"
-                                        color={C.greenDark}
-                                        bg={C.greenSoft}
-                                        borderRadius="10px"
-                                        textAlign="center"
-                                        fontSize="10px"
-                                    >
-                                        {formik.values.ingredients.length}
-                                    </Text>
-                                </Flex>
-                                <Box as="datalist" id="ingredient-options">
-                                    {ingredients.map((item) => (
-                                        <Option
-                                            key={item.id}
-                                            value={item.name}
-                                        />
-                                    ))}
-                                </Box>
-                                <Grid gap="8px">
-                                    {formik.values.ingredients.map(
-                                        (item, index) => (
-                                            <Grid
-                                                key={index}
-                                                templateColumns="minmax(0,1.6fr) 72px 64px 30px"
-                                                gap={{ base: '4px', sm: '6px' }}
-                                                alignItems="start"
-                                            >
-                                                <Box minW="0">
-                                                    <Input
-                                                        {...smallControl(
-                                                            invalid(
-                                                                formik,
-                                                                `ingredients.${index}.name`,
-                                                            ) ||
-                                                                (getIn(
-                                                                    formik.touched,
-                                                                    `ingredients.${index}`,
-                                                                ) &&
-                                                                    typeof getIn(
-                                                                        formik.errors,
-                                                                        `ingredients.${index}`,
-                                                                    ) ===
-                                                                        'string'),
-                                                        )}
-                                                        name={`ingredients.${index}.name`}
-                                                        value={item.name}
-                                                        list="ingredient-options"
-                                                        placeholder="Ingrediente"
-                                                        aria-label={`Ingrediente ${index + 1}`}
-                                                        onBlur={
-                                                            formik.handleBlur
-                                                        }
-                                                        onChange={(event) => {
-                                                            const name =
-                                                                event.target
-                                                                    .value
-                                                            const match =
-                                                                ingredients.find(
-                                                                    (entry) =>
-                                                                        entry.name.toLocaleLowerCase() ===
-                                                                        name.toLocaleLowerCase(),
-                                                                )
-                                                            formik.setFieldValue(
-                                                                `ingredients.${index}.name`,
-                                                                name,
-                                                            )
-                                                            formik.setFieldValue(
-                                                                `ingredients.${index}.ingredient_id`,
-                                                                match?.id ?? '',
-                                                            )
-                                                        }}
-                                                    />
-                                                    <ErrorText
-                                                        formik={formik}
-                                                        name={`ingredients.${index}`}
-                                                    />
-                                                    <ErrorText
-                                                        formik={formik}
-                                                        name={`ingredients.${index}.name`}
-                                                    />
-                                                </Box>
-                                                <Box>
-                                                    <Input
-                                                        {...smallControl(
-                                                            invalid(
-                                                                formik,
-                                                                `ingredients.${index}.quantity`,
-                                                            ),
-                                                        )}
-                                                        name={`ingredients.${index}.quantity`}
-                                                        type="number"
-                                                        min="0"
-                                                        step="any"
-                                                        value={item.quantity}
-                                                        onChange={
-                                                            formik.handleChange
-                                                        }
-                                                        onBlur={
-                                                            formik.handleBlur
-                                                        }
-                                                        placeholder="Cant."
-                                                        aria-label={`Cantidad ${index + 1}`}
-                                                    />
-                                                    <ErrorText
-                                                        formik={formik}
-                                                        name={`ingredients.${index}.quantity`}
-                                                    />
-                                                </Box>
-                                                <Box
-                                                    as="select"
-                                                    {...smallControl(
-                                                        invalid(
-                                                            formik,
-                                                            `ingredients.${index}.unit`,
-                                                        ),
-                                                    )}
-                                                    name={`ingredients.${index}.unit`}
-                                                    value={item.unit}
-                                                    onChange={
-                                                        formik.handleChange
-                                                    }
-                                                    onBlur={formik.handleBlur}
-                                                    aria-label={`Unidad ${index + 1}`}
-                                                >
-                                                    <Option value="">
-                                                        Unidad…
-                                                    </Option>
-                                                    {UNITS.map((unit) => (
-                                                        <Option
-                                                            key={unit}
-                                                            value={unit}
-                                                        >
-                                                            {unit}
-                                                        </Option>
-                                                    ))}
-                                                </Box>
-                                                <RemoveButton
-                                                    aria-label={`Quitar ingrediente ${index + 1}`}
-                                                    onClick={() =>
-                                                        remove(index)
-                                                    }
-                                                />
-                                            </Grid>
-                                        ),
-                                    )}
-                                </Grid>
-                                <AddButton
-                                    onClick={() =>
-                                        push(createEmptyIngredient())
-                                    }
-                                >
-                                    <PiPlus /> Añadir ingrediente
-                                </AddButton>
-                            </Box>
-                        )}
-                    </FieldArray>
+                    <IngredientsField
+                        formik={formik}
+                        ingredientOptions={ingredients}
+                        datalistId="recipe-ingredient-options"
+                    />
 
                     <FieldArray name="components">
                         {({ push, remove }) => (
