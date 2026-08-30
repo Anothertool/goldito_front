@@ -471,32 +471,97 @@ button {
   padding: 18px 22px 0;
 }
 
-.recipe-photo-placeholder {
+.recipe-photo-field {
+  min-width: 0;
+}
+
+.recipe-photo-picker {
+  position: relative;
   display: flex;
   height: 126px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #777168;
+  background: rgb(255 255 255 / 38%);
+  border: 2px dashed #ccc4b8;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.recipe-photo-picker:hover,
+.recipe-photo-picker:focus-within {
+  border-color: #86b47c;
+  box-shadow: 0 0 0 3px rgb(86 157 83 / 10%);
+}
+
+.recipe-photo-picker:active {
+  transform: scale(0.995);
+}
+
+.recipe-photo-picker.has-image {
+  background: #e8e3da;
+  border-style: solid;
+}
+
+.recipe-photo-picker > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.recipe-photo-picker > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.recipe-photo-picker__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: 2px;
   color: #777168;
-  background: rgb(255 255 255 / 38%);
-  border: 2px dashed #ccc4b8;
-  border-radius: 13px;
+  transition: background 0.15s;
 }
 
-.recipe-photo-placeholder svg {
+.recipe-photo-picker.has-image .recipe-photo-picker__overlay {
+  top: auto;
+  min-height: 52px;
+  padding: 7px 12px;
+  color: white;
+  background: linear-gradient(transparent, rgb(37 32 26 / 78%));
+  justify-content: flex-end;
+}
+
+.recipe-photo-picker__overlay svg {
   margin-bottom: 3px;
-  color: #625e57;
+  color: currentColor;
   font-size: 35px;
 }
 
-.recipe-photo-placeholder strong {
+.recipe-photo-picker.has-image .recipe-photo-picker__overlay svg {
+  margin: 0;
+  font-size: 20px;
+}
+
+.recipe-photo-picker__overlay strong {
   font-size: 12px;
 }
 
-.recipe-photo-placeholder span {
+.recipe-photo-picker__overlay small {
   color: #a19a91;
   font-size: 10px;
+}
+
+.recipe-photo-picker.has-image .recipe-photo-picker__overlay small {
+  display: none;
 }
 
 .form-field {

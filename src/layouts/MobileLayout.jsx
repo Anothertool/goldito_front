@@ -8,8 +8,10 @@ function MobileLayout() {
   const isStandaloneForm =
     pathname === '/recetas/nueva' ||
     /^\/recetas\/[^/]+\/editar$/.test(pathname) ||
-    pathname === '/freezer/nuevo' ||
-    /^\/freezer\/[^/]+\/editar$/.test(pathname)
+    pathname === '/storage/nuevo' ||
+    /^\/storage\/[^/]+\/editar$/.test(pathname) ||
+    pathname === '/componentes/nuevo' ||
+    /^\/componentes\/[^/]+\/editar$/.test(pathname)
 
   return (
     <Box

@@ -1,400 +1,1253 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+    Box,
+    Button,
+    Flex,
+    Grid,
+    Heading,
+    Image,
+    Input,
+    Spinner,
+    Text,
+    Textarea,
+} from '@chakra-ui/react'
 import { FieldArray, FormikProvider, getIn, useFormik } from 'formik'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  PiArrowLeft,
-  PiCamera,
-  PiCheck,
-  PiMinus,
-  PiPlus,
-  PiTag,
-  PiX,
+    PiArrowLeft,
+    PiCamera,
+    PiCheck,
+    PiMinus,
+    PiPlus,
+    PiTag,
+    PiX,
 } from 'react-icons/pi'
+import { componentsApi, ingredientsApi, recipeTagsApi, recipesApi } from '@/api'
 import {
-  componentsApi,
-  ingredientsApi,
-  recipeTagsApi,
-  recipesApi,
-} from '@/api'
-import {
-  createEmptyComponent,
-  createEmptyIngredient,
-  getRecipeInitialValues,
-  toRecipePayload,
-  validationSchema,
+    createEmptyComponent,
+    createEmptyIngredient,
+    getRecipeInitialValues,
+    toRecipePayload,
+    validationSchema,
 } from './utils'
-import './recetas.css'
 
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta']
+const C = {
+    ink: '#302d28',
+    muted: '#777168',
+    border: '#e7dfd3',
+    green: '#559b55',
+    greenDark: '#397c3d',
+    greenSoft: '#e9f2df',
+    danger: '#bd4d4d',
+}
+const getResults = (data) =>
+    Array.isArray(data) ? data : (data?.results ?? [])
+const invalid = (formik, name) =>
+    Boolean(getIn(formik.touched, name) && getIn(formik.errors, name))
+const control = (isInvalid = false) => ({
+    w: '100%',
+    color: C.ink,
+    bg: 'rgba(255,253,249,.76)',
+    borderColor: isInvalid ? C.danger : C.border,
+    borderRadius: '10px',
+    _focusVisible: {
+        borderColor: isInvalid ? C.danger : '#86b47c',
+        boxShadow: `0 0 0 3px ${isInvalid ? 'rgba(189,77,77,.1)' : 'rgba(86,157,83,.1)'}`,
+    },
+})
+const smallControl = (isInvalid = false) => ({
+    ...control(isInvalid),
+    h: '38px',
+    px: '8px',
+    borderRadius: '8px',
+    fontSize: '11px',
+})
 
-const getResults = (data) => (Array.isArray(data) ? data : data?.results ?? [])
-
-function FieldError({ formik, name }) {
-  const error = getIn(formik.errors, name)
-  const touched = getIn(formik.touched, name)
-  if (!touched || !error || typeof error !== 'string') return null
-  return <span className="field-error">{error}</span>
+function normalizeErrors(value) {
+    if (Array.isArray(value))
+        return value.every((item) => typeof item !== 'object' || item === null)
+            ? value.join(' ')
+            : value.map(normalizeErrors)
+    if (value && typeof value === 'object')
+        return Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [
+                key,
+                normalizeErrors(item),
+            ]),
+        )
+    return value == null ? '' : String(value)
 }
 
-function RecipeForm() {
-  const navigate = useNavigate()
-  const { recipeId } = useParams()
-  const isEditing = Boolean(recipeId)
-  const [selectedTag, setSelectedTag] = useState('')
-  const [newTagName, setNewTagName] = useState('')
-  const [tagCreatorOpen, setTagCreatorOpen] = useState(false)
-
-  const recipeQuery = useQuery(recipesApi.queries.detail(recipeId))
-  const tagsQuery = useQuery(recipeTagsApi.queries.list({ page_size: 100, ordering: 'name' }))
-  const ingredientsQuery = useQuery(ingredientsApi.queries.list({ page_size: 100, ordering: 'name' }))
-  const componentsQuery = useQuery(componentsApi.queries.list({ page_size: 100, ordering: 'name', is_active: true }))
-  const createRecipe = useMutation(recipesApi.mutations.create())
-  const updateRecipe = useMutation(recipesApi.mutations.partialUpdate())
-  const createTag = useMutation(recipeTagsApi.mutations.create())
-
-  const tags = getResults(tagsQuery.data)
-  const ingredients = getResults(ingredientsQuery.data)
-  const components = getResults(componentsQuery.data)
-  const formInitialValues = useMemo(
-    () => getRecipeInitialValues(recipeQuery.data),
-    [recipeQuery.data],
-  )
-
-  const formik = useFormik({
-    initialValues: formInitialValues,
-    validationSchema,
-    enableReinitialize: true,
-    onSubmit: async (values, helpers) => {
-      helpers.setStatus(null)
-      const payload = toRecipePayload(values)
-
-      try {
-        if (isEditing) {
-          await updateRecipe.mutateAsync({ id: recipeId, data: payload })
-        } else {
-          await createRecipe.mutateAsync(payload)
-        }
-        navigate('/recetas')
-      } catch (error) {
-        const apiErrors = error.response?.data
-        helpers.setStatus(
-          typeof apiErrors === 'string'
-            ? apiErrors
-            : apiErrors?.detail ?? 'No se ha podido guardar la receta. Revisa los datos.',
+function touchAll(value) {
+    if (Array.isArray(value)) return value.map(touchAll)
+    if (value && typeof value === 'object')
+        return Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, touchAll(item)]),
         )
-      }
-    },
-  })
+    return true
+}
 
-  const addSelectedTag = () => {
-    const id = Number(selectedTag)
-    if (id && !formik.values.tags.includes(id)) {
-      formik.setFieldValue('tags', [...formik.values.tags, id])
+function firstError(value, prefix = '') {
+    if (typeof value === 'string') return { message: value, path: prefix }
+    if (!value || typeof value !== 'object') return null
+    for (const [key, nested] of Object.entries(value)) {
+        const result = firstError(nested, prefix ? `${prefix}.${key}` : key)
+        if (result) return result
     }
-    setSelectedTag('')
-  }
+    return null
+}
 
-  const handleCreateTag = async () => {
-    const name = newTagName.trim()
-    if (!name) return
+function focusError(errors) {
+    const path = firstError(errors)?.path
+    if (!path) return
+    requestAnimationFrame(() => {
+        const bracketPath = path.replace(
+            /\.\d+(?=\.|$)/g,
+            (part) => `[${part.slice(1)}]`,
+        )
+        const field = [...document.querySelectorAll('[name]')].find((node) =>
+            [path, bracketPath].some(
+                (candidate) =>
+                    node.name === candidate ||
+                    node.name.startsWith(`${candidate}.`),
+            ),
+        )
+        field?.focus()
+    })
+}
 
-    try {
-      const tag = await createTag.mutateAsync({ name })
-      formik.setFieldValue('tags', [...formik.values.tags, tag.id])
-      setNewTagName('')
-      setTagCreatorOpen(false)
-    } catch {
-      // The inline mutation message below gives the user a retry path.
-    }
-  }
-
-  const selectedTags = formik.values.tags.map((id) =>
-    tags.find((tag) => Number(tag.id) === Number(id)) ?? { id, name: `Etiqueta ${id}` },
-  )
-  const isSaving = createRecipe.isPending || updateRecipe.isPending
-
-  if (isEditing && recipeQuery.isPending) {
-    return <div className="recipe-form-state"><span className="recipe-spinner" />Cargando receta…</div>
-  }
-
-  if (isEditing && recipeQuery.isError) {
+function ErrorText({ formik, name }) {
+    const error = getIn(formik.errors, name)
+    if (!getIn(formik.touched, name) || typeof error !== 'string') return null
     return (
-      <div className="recipe-form-state recipe-state--error">
-        <p>No hemos podido abrir esta receta.</p>
-        <button type="button" onClick={() => navigate('/recetas')}>Volver al listado</button>
-      </div>
+        <Text mt="4px" color={C.danger} fontSize="11px" role="alert">
+            {error}
+        </Text>
     )
-  }
+}
 
-  return (
-    <FormikProvider value={formik}>
-      <section className="recipe-form-screen">
-        <header className="recipe-form-header">
-          <button type="button" className="icon-button icon-button--plain" onClick={() => navigate('/recetas')} aria-label="Volver">
-            <PiArrowLeft />
-          </button>
-          <h1>{isEditing ? 'Editar receta' : 'Crear receta'}</h1>
-          <button type="submit" form="recipe-form" className="save-recipe-button" disabled={isSaving}>
-            {isSaving ? 'Guardando…' : 'Guardar'}
-          </button>
-        </header>
+function FormField({ children, formik, label, name, optional }) {
+    return (
+        <Box minW="0">
+            <Flex
+                as="label"
+                htmlFor={name}
+                mb="6px"
+                gap="4px"
+                color="#37332e"
+                fontSize="12px"
+                fontWeight="750"
+            >
+                {label}
+                {optional && (
+                    <Text as="span" color="#969087" fontWeight="500">
+                        (opcional)
+                    </Text>
+                )}
+            </Flex>
+            {children}
+            {name && <ErrorText formik={formik} name={name} />}
+        </Box>
+    )
+}
 
-        <form id="recipe-form" className="recipe-form" onSubmit={formik.handleSubmit} noValidate>
-          <div className="recipe-photo-placeholder" aria-label="La API todavía no admite fotografías de recetas">
-            <PiCamera />
-            <strong>Foto de la receta</strong>
-            <span>Disponible próximamente</span>
-          </div>
+const AddButton = (props) => (
+    <Button
+        type="button"
+        mt="8px"
+        px="8px"
+        py="3px"
+        h="auto"
+        color={C.greenDark}
+        bg="transparent"
+        fontSize="12px"
+        fontWeight="650"
+        {...props}
+    />
+)
+const RemoveButton = (props) => (
+    <Button
+        type="button"
+        minW="25px"
+        w="25px"
+        h="25px"
+        mt="7px"
+        mx="auto"
+        p="0"
+        color={C.danger}
+        bg="#fff7f5"
+        border="1px solid #e98f8f"
+        borderRadius="50%"
+        {...props}
+    >
+        <PiMinus />
+    </Button>
+)
+const Option = (props) => <Box as="option" {...props} />
 
-          <div className="form-field">
-            <label htmlFor="name">Nombre de la receta</label>
-            <input
-              id="name"
-              name="name"
-              value={formik.values.name}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              placeholder="Ej: Curry de pollo con arroz"
-              maxLength={150}
-              className={formik.touched.name && formik.errors.name ? 'input-error' : ''}
-            />
-            <FieldError formik={formik} name="name" />
-          </div>
+function RecipeForm() {
+    const navigate = useNavigate()
+    const { recipeId } = useParams()
+    const isEditing = Boolean(recipeId)
+    const [selectedTag, setSelectedTag] = useState('')
+    const [newTagName, setNewTagName] = useState('')
+    const [tagCreatorOpen, setTagCreatorOpen] = useState(false)
+    const [imagePreview, setImagePreview] = useState('')
+    const [persistedRecipeId, setPersistedRecipeId] = useState(null)
 
-          <div className="form-field">
-            <label htmlFor="description">Descripción <span>(opcional)</span></label>
-            <textarea
-              id="description"
-              name="description"
-              value={formik.values.description}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              placeholder="Una breve descripción de la receta"
-              rows="3"
-            />
-          </div>
+    useEffect(
+        () => () => {
+            if (imagePreview) URL.revokeObjectURL(imagePreview)
+        },
+        [imagePreview],
+    )
 
-          <fieldset className="form-field meal-type-field">
-            <legend>Tipo de comida</legend>
-            <div className="segmented-control">
-              {[
-                ['lunch', 'Comida'],
-                ['dinner', 'Cena'],
-                ['', 'Ambas'],
-              ].map(([value, label]) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={formik.values.meal_type === value ? 'is-selected' : ''}
-                  onClick={() => formik.setFieldValue('meal_type', value)}
+    const recipeQuery = useQuery(recipesApi.queries.detail(recipeId))
+    const tagsQuery = useQuery(
+        recipeTagsApi.queries.list({ page_size: 100, ordering: 'name' }),
+    )
+    const ingredientsQuery = useQuery(
+        ingredientsApi.queries.list({ page_size: 100, ordering: 'name' }),
+    )
+    const componentsQuery = useQuery(
+        componentsApi.queries.list({
+            page_size: 100,
+            ordering: 'name',
+            is_active: true,
+        }),
+    )
+    const createRecipe = useMutation(recipesApi.mutations.create())
+    const updateRecipe = useMutation(recipesApi.mutations.partialUpdate())
+    const createTag = useMutation(recipeTagsApi.mutations.create())
+    const tags = getResults(tagsQuery.data)
+    const ingredients = getResults(ingredientsQuery.data)
+    const components = getResults(componentsQuery.data)
+    const initialValues = useMemo(
+        () => getRecipeInitialValues(recipeQuery.data),
+        [recipeQuery.data],
+    )
+
+    const formik = useFormik({
+        initialValues,
+        validationSchema,
+        enableReinitialize: true,
+        onSubmit: async (values, helpers) => {
+            helpers.setStatus(null)
+            const targetId = recipeId ?? persistedRecipeId
+            let createdNow = false
+            try {
+                const saved = targetId
+                    ? await updateRecipe.mutateAsync({
+                          id: targetId,
+                          data: toRecipePayload(values),
+                      })
+                    : await createRecipe.mutateAsync(toRecipePayload(values))
+                if (!targetId) {
+                    createdNow = true
+                    setPersistedRecipeId(saved.id)
+                }
+                if (values.image) {
+                    const imageData = new FormData()
+                    imageData.append('image', values.image)
+                    await updateRecipe.mutateAsync({
+                        id: saved.id ?? targetId,
+                        data: imageData,
+                    })
+                }
+                navigate('/recetas')
+            } catch (error) {
+                const errors = normalizeErrors(error.response?.data)
+                const fieldErrors =
+                    errors && typeof errors === 'object' ? errors : {}
+                helpers.setErrors(fieldErrors)
+                helpers.setStatus(
+                    createdNow && fieldErrors.image
+                        ? 'La receta se ha guardado, pero no se pudo subir la imagen. Pulsa Guardar para reintentar.'
+                        : (firstError(errors)?.message ??
+                              'No se ha podido guardar la receta. Revisa los datos e inténtalo de nuevo.'),
+                )
+                focusError(fieldErrors)
+            }
+        },
+    })
+
+    const submit = async (event) => {
+        event.preventDefault()
+        const errors = await formik.validateForm()
+        if (Object.keys(errors).length) {
+            await formik.setTouched(touchAll(formik.values), false)
+            formik.setStatus(
+                'Hay campos con errores. Revísalos antes de guardar.',
+            )
+            focusError(errors)
+            return
+        }
+        await formik.submitForm()
+    }
+
+    const addTag = () => {
+        const id = Number(selectedTag)
+        if (id && !formik.values.tags.includes(id))
+            formik.setFieldValue('tags', [...formik.values.tags, id])
+        setSelectedTag('')
+    }
+    const createNewTag = async () => {
+        const name = newTagName.trim()
+        if (!name) return
+        try {
+            const tag = await createTag.mutateAsync({ name })
+            formik.setFieldValue('tags', [...formik.values.tags, tag.id])
+            setNewTagName('')
+            setTagCreatorOpen(false)
+        } catch {
+            /* useMutation expone el error debajo del campo */
+        }
+    }
+    const selectedTags = formik.values.tags.map(
+        (id) =>
+            tags.find((tag) => Number(tag.id) === Number(id)) ?? {
+                id,
+                name: `Etiqueta ${id}`,
+            },
+    )
+    const isSaving = createRecipe.isPending || updateRecipe.isPending
+    const photo = imagePreview || recipeQuery.data?.image_url
+
+    if (isEditing && recipeQuery.isPending)
+        return (
+            <Flex
+                minH="100dvh"
+                align="center"
+                justify="center"
+                gap="10px"
+                color={C.muted}
+            >
+                <Spinner size="sm" color={C.green} />
+                <Text>Cargando receta…</Text>
+            </Flex>
+        )
+    if (isEditing && recipeQuery.isError)
+        return (
+            <Flex
+                minH="100dvh"
+                direction="column"
+                align="center"
+                justify="center"
+                gap="10px"
+                color={C.muted}
+            >
+                <Text>No hemos podido abrir esta receta.</Text>
+                <Button
+                    bg={C.green}
+                    color="white"
+                    onClick={() => navigate('/recetas')}
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+                    Volver al listado
+                </Button>
+            </Flex>
+        )
 
-          <div className="form-grid">
-            <div className="form-field">
-              <label htmlFor="servings">Raciones</label>
-              <div className="number-stepper">
-                <button type="button" onClick={() => formik.setFieldValue('servings', Math.max(1, Number(formik.values.servings) - 1))} aria-label="Restar una ración">
-                  <PiMinus />
-                </button>
-                <input id="servings" name="servings" type="number" min="1" value={formik.values.servings} onChange={formik.handleChange} onBlur={formik.handleBlur} />
-                <button type="button" onClick={() => formik.setFieldValue('servings', Number(formik.values.servings || 0) + 1)} aria-label="Añadir una ración">
-                  <PiPlus />
-                </button>
-              </div>
-              <FieldError formik={formik} name="servings" />
-            </div>
+    return (
+        <FormikProvider value={formik}>
+            <Box minH="100%" pb="38px" color={C.ink} bg="#fdf8ef">
+                <Flex
+                    as="header"
+                    position="sticky"
+                    zIndex="8"
+                    top="0"
+                    h="70px"
+                    align="center"
+                    justify="space-between"
+                    px="18px"
+                    py="10px"
+                    bg="rgba(253,248,239,.94)"
+                    borderBottom="1px solid rgba(231,223,211,.8)"
+                    backdropFilter="blur(10px)"
+                >
+                    <Button
+                        type="button"
+                        minW="34px"
+                        w="34px"
+                        h="34px"
+                        p="0"
+                        color={C.ink}
+                        bg="transparent"
+                        aria-label="Volver"
+                        onClick={() => navigate('/recetas')}
+                    >
+                        <PiArrowLeft />
+                    </Button>
+                    <Heading as="h1" fontSize="18px" letterSpacing="-.035em">
+                        {isEditing ? 'Editar receta' : 'Crear receta'}
+                    </Heading>
+                    <Button
+                        type="submit"
+                        form="recipe-form"
+                        minW="68px"
+                        px="5px"
+                        color={C.greenDark}
+                        bg="transparent"
+                        fontSize="13px"
+                        fontWeight="750"
+                        disabled={isSaving}
+                    >
+                        {isSaving ? 'Guardando…' : 'Guardar'}
+                    </Button>
+                </Flex>
 
-            <div className="form-field">
-              <label htmlFor="active_time_minutes">Tiempo activo (min)</label>
-              <input
-                id="active_time_minutes"
-                name="active_time_minutes"
-                type="number"
-                min="0"
-                value={formik.values.active_time_minutes}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                placeholder="30"
-              />
-              <FieldError formik={formik} name="active_time_minutes" />
-            </div>
-          </div>
-
-          <div className="form-field">
-            <label>Etiquetas</label>
-            {selectedTags.length > 0 && (
-              <div className="selected-tags">
-                {selectedTags.map((tag) => (
-                  <span key={tag.id}>
-                    {tag.name}
-                    <button type="button" onClick={() => formik.setFieldValue('tags', formik.values.tags.filter((id) => Number(id) !== Number(tag.id)))} aria-label={`Quitar ${tag.name}`}>
-                      <PiX />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="inline-add-row">
-              <select value={selectedTag} onChange={(event) => setSelectedTag(event.target.value)}>
-                <option value="">Seleccionar etiqueta…</option>
-                {tags.filter((tag) => !formik.values.tags.some((id) => Number(id) === Number(tag.id))).map((tag) => (
-                  <option key={tag.id} value={tag.id}>{tag.name}</option>
-                ))}
-              </select>
-              <button type="button" onClick={addSelectedTag} disabled={!selectedTag} aria-label="Añadir etiqueta"><PiPlus /></button>
-            </div>
-            {!tagCreatorOpen ? (
-              <button type="button" className="text-add-button" onClick={() => setTagCreatorOpen(true)}><PiTag /> Crear etiqueta nueva</button>
-            ) : (
-              <div className="inline-create-row">
-                <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="Nombre de la etiqueta" maxLength="100" />
-                <button type="button" onClick={handleCreateTag} disabled={!newTagName.trim() || createTag.isPending}><PiCheck /></button>
-                <button type="button" onClick={() => setTagCreatorOpen(false)}><PiX /></button>
-              </div>
-            )}
-            {createTag.isError && <span className="field-error">No se ha podido crear la etiqueta.</span>}
-          </div>
-
-          <FieldArray name="ingredients">
-            {({ push, remove }) => (
-              <section className="nested-section">
-                <div className="nested-section__heading">
-                  <h2>Ingredientes</h2>
-                  <span>{formik.values.ingredients.length}</span>
-                </div>
-                <datalist id="ingredient-options">
-                  {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.name} />)}
-                </datalist>
-                <div className="nested-list">
-                  {formik.values.ingredients.map((ingredient, index) => (
-                    <div className="ingredient-row" key={index}>
-                      <div>
-                        <input
-                          name={`ingredients.${index}.name`}
-                          value={ingredient.name}
-                          list="ingredient-options"
-                          placeholder="Ingrediente"
-                          aria-label={`Ingrediente ${index + 1}`}
-                          onBlur={formik.handleBlur}
-                          onChange={(event) => {
-                            const name = event.target.value
-                            const match = ingredients.find((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase())
-                            formik.setFieldValue(`ingredients.${index}.name`, name)
-                            formik.setFieldValue(`ingredients.${index}.ingredient_id`, match?.id ?? '')
-                          }}
-                        />
-                        <FieldError formik={formik} name={`ingredients.${index}`} />
-                      </div>
-                      <div>
-                        <input
-                          name={`ingredients.${index}.quantity`}
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={ingredient.quantity}
-                          onChange={formik.handleChange}
-                          onBlur={formik.handleBlur}
-                          placeholder="Cant."
-                          aria-label={`Cantidad del ingrediente ${index + 1}`}
-                        />
-                        <FieldError formik={formik} name={`ingredients.${index}.quantity`} />
-                      </div>
-                      <select name={`ingredients.${index}.unit`} value={ingredient.unit} onChange={formik.handleChange} aria-label={`Unidad del ingrediente ${index + 1}`}>
-                        {UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                      </select>
-                      <button type="button" className="remove-row-button" onClick={() => remove(index)} aria-label={`Quitar ingrediente ${index + 1}`}><PiMinus /></button>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="text-add-button" onClick={() => push(createEmptyIngredient())}><PiPlus /> Añadir ingrediente</button>
-              </section>
-            )}
-          </FieldArray>
-
-          <FieldArray name="components">
-            {({ push, remove }) => (
-              <section className="nested-section">
-                <div className="nested-section__heading">
-                  <h2>Componentes utilizados</h2>
-                  <span>{formik.values.components.length}</span>
-                </div>
-                <div className="nested-list">
-                  {formik.values.components.map((component, index) => (
-                    <div className="component-row" key={index}>
-                      <div>
-                        <select
-                          name={`components.${index}.component_id`}
-                          value={component.component_id}
-                          onChange={formik.handleChange}
-                          onBlur={formik.handleBlur}
-                          aria-label={`Componente ${index + 1}`}
+                <Grid
+                    as="form"
+                    id="recipe-form"
+                    noValidate
+                    gap="17px"
+                    px={{ base: '15px', sm: '22px' }}
+                    pt="18px"
+                    onSubmit={submit}
+                >
+                    <Box>
+                        <Flex
+                            as="label"
+                            position="relative"
+                            h="126px"
+                            align="center"
+                            justify="center"
+                            overflow="hidden"
+                            bg={photo ? '#e8e3da' : 'rgba(255,255,255,.38)'}
+                            border="2px dashed"
+                            borderStyle={photo ? 'solid' : 'dashed'}
+                            borderColor={
+                                invalid(formik, 'image') ? C.danger : '#ccc4b8'
+                            }
+                            borderRadius="13px"
+                            cursor="pointer"
+                            _hover={{
+                                borderColor: '#86b47c',
+                                boxShadow: '0 0 0 3px rgba(86,157,83,.1)',
+                            }}
                         >
-                          <option value="">Seleccionar componente…</option>
-                          {components.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                        </select>
-                        <FieldError formik={formik} name={`components.${index}.component_id`} />
-                      </div>
-                      <div className="portion-field">
-                        <input
-                          name={`components.${index}.portions`}
-                          type="number"
-                          min="0"
-                          step="0.25"
-                          value={component.portions}
-                          onChange={formik.handleChange}
-                          onBlur={formik.handleBlur}
-                          aria-label={`Porciones del componente ${index + 1}`}
+                            <Input
+                                position="absolute"
+                                w="1px"
+                                h="1px"
+                                opacity="0"
+                                type="file"
+                                name="image"
+                                accept="image/*"
+                                onChange={(event) => {
+                                    const file =
+                                        event.currentTarget.files?.[0] ?? null
+                                    formik.setFieldValue('image', file)
+                                    formik.setFieldTouched('image', true, false)
+                                    setImagePreview(
+                                        file ? URL.createObjectURL(file) : '',
+                                    )
+                                }}
+                            />
+                            {photo && (
+                                <Image
+                                    w="100%"
+                                    h="100%"
+                                    objectFit="cover"
+                                    src={photo}
+                                    alt="Vista previa de la receta"
+                                />
+                            )}
+                            <Flex
+                                position="absolute"
+                                inset="0"
+                                top={photo ? 'auto' : '0'}
+                                minH={photo ? '58px' : undefined}
+                                direction="column"
+                                align="center"
+                                justify={photo ? 'flex-end' : 'center'}
+                                py={photo ? '7px' : '0'}
+                                color={photo ? 'white' : C.muted}
+                                bg={
+                                    photo
+                                        ? 'linear-gradient(transparent,rgba(37,32,26,.78))'
+                                        : 'transparent'
+                                }
+                            >
+                                <Box fontSize={photo ? '20px' : '35px'}>
+                                    <PiCamera />
+                                </Box>
+                                <Text as="strong" fontSize="12px">
+                                    {photo ? 'Cambiar foto' : 'Añadir foto'}
+                                </Text>
+                                {!photo && (
+                                    <Text fontSize="10px" color="#a19a91">
+                                        JPG, PNG, WEBP…
+                                    </Text>
+                                )}
+                            </Flex>
+                        </Flex>
+                        <ErrorText formik={formik} name="image" />
+                    </Box>
+
+                    <FormField
+                        formik={formik}
+                        label="Nombre de la receta"
+                        name="name"
+                    >
+                        <Input
+                            {...control(invalid(formik, 'name'))}
+                            id="name"
+                            name="name"
+                            value={formik.values.name}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            placeholder="Ej: Curry de pollo con arroz"
+                            maxLength={150}
+                            aria-invalid={invalid(formik, 'name')}
                         />
-                        <span className="portion-suffix">porciones</span>
-                        <FieldError formik={formik} name={`components.${index}.portions`} />
-                      </div>
-                      <button type="button" className="remove-row-button" onClick={() => remove(index)} aria-label={`Quitar componente ${index + 1}`}><PiMinus /></button>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="text-add-button" onClick={() => push(createEmptyComponent())}><PiPlus /> Añadir componente</button>
-                <p className="nested-hint">Los componentes nuevos deben crearse antes desde la sección Componentes.</p>
-              </section>
-            )}
-          </FieldArray>
+                    </FormField>
+                    <FormField
+                        formik={formik}
+                        label="Descripción"
+                        name="description"
+                        optional
+                    >
+                        <Textarea
+                            {...control()}
+                            id="description"
+                            name="description"
+                            value={formik.values.description}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            placeholder="Una breve descripción de la receta"
+                            rows={3}
+                        />
+                    </FormField>
 
-          <div className="form-field">
-            <label htmlFor="instructions">Instrucciones</label>
-            <textarea
-              id="instructions"
-              name="instructions"
-              value={formik.values.instructions}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              placeholder="Describe los pasos para preparar la receta…"
-              rows="6"
-            />
-          </div>
+                    <Box as="fieldset" m="0" p="0" border="0">
+                        <Text
+                            as="legend"
+                            mb="6px"
+                            fontSize="12px"
+                            fontWeight="750"
+                        >
+                            Tipo de comida
+                        </Text>
+                        <Grid templateColumns="repeat(3,1fr)" gap="8px">
+                            {[
+                                ['lunch', 'Comida'],
+                                ['dinner', 'Cena'],
+                                ['', 'Ambas'],
+                            ].map(([value, label]) => {
+                                const selected =
+                                    formik.values.meal_type === value
+                                return (
+                                    <Button
+                                        key={label}
+                                        type="button"
+                                        h="43px"
+                                        color={selected ? '#3e6737' : '#4c4841'}
+                                        bg={
+                                            selected
+                                                ? C.greenSoft
+                                                : 'rgba(255,253,249,.72)'
+                                        }
+                                        border="1px solid"
+                                        borderColor={
+                                            selected ? '#c8d9b8' : C.border
+                                        }
+                                        borderRadius="10px"
+                                        fontSize="12px"
+                                        onClick={() =>
+                                            formik.setFieldValue(
+                                                'meal_type',
+                                                value,
+                                            )
+                                        }
+                                    >
+                                        {label}
+                                    </Button>
+                                )
+                            })}
+                        </Grid>
+                    </Box>
 
-          <label className="active-toggle">
-            <span>
-              <strong>Receta activa</strong>
-              <small>Estará disponible para planificar comidas.</small>
-            </span>
-            <input type="checkbox" name="is_active" checked={formik.values.is_active} onChange={formik.handleChange} />
-            <i aria-hidden="true" />
-          </label>
+                    <Grid
+                        templateColumns={{ base: '1fr', sm: '1fr 1fr' }}
+                        gap="12px"
+                    >
+                        <FormField
+                            formik={formik}
+                            label="Raciones"
+                            name="servings"
+                        >
+                            <Grid
+                                h="44px"
+                                templateColumns="38px 1fr 38px"
+                                alignItems="center"
+                                bg="rgba(255,253,249,.76)"
+                                border="1px solid"
+                                borderColor={
+                                    invalid(formik, 'servings')
+                                        ? C.danger
+                                        : C.border
+                                }
+                                borderRadius="10px"
+                            >
+                                <Button
+                                    type="button"
+                                    minW="25px"
+                                    w="25px"
+                                    h="25px"
+                                    m="auto"
+                                    p="0"
+                                    color={C.greenDark}
+                                    bg="#f7fbf3"
+                                    border="1px solid #9ec695"
+                                    aria-label="Restar una ración"
+                                    onClick={() =>
+                                        formik.setFieldValue(
+                                            'servings',
+                                            Math.max(
+                                                1,
+                                                Number(formik.values.servings) -
+                                                    1,
+                                            ),
+                                        )
+                                    }
+                                >
+                                    <PiMinus />
+                                </Button>
+                                <Input
+                                    id="servings"
+                                    name="servings"
+                                    type="number"
+                                    min="1"
+                                    h="40px"
+                                    p="0"
+                                    value={formik.values.servings}
+                                    textAlign="center"
+                                    bg="transparent"
+                                    border="0"
+                                    onChange={formik.handleChange}
+                                    onBlur={formik.handleBlur}
+                                />
+                                <Button
+                                    type="button"
+                                    minW="25px"
+                                    w="25px"
+                                    h="25px"
+                                    m="auto"
+                                    p="0"
+                                    color={C.greenDark}
+                                    bg="#f7fbf3"
+                                    border="1px solid #9ec695"
+                                    aria-label="Añadir una ración"
+                                    onClick={() =>
+                                        formik.setFieldValue(
+                                            'servings',
+                                            Number(
+                                                formik.values.servings || 0,
+                                            ) + 1,
+                                        )
+                                    }
+                                >
+                                    <PiPlus />
+                                </Button>
+                            </Grid>
+                        </FormField>
+                        <FormField
+                            formik={formik}
+                            label="Tiempo activo (min)"
+                            name="active_time_minutes"
+                        >
+                            <Input
+                                {...control(
+                                    invalid(formik, 'active_time_minutes'),
+                                )}
+                                id="active_time_minutes"
+                                name="active_time_minutes"
+                                type="number"
+                                min="0"
+                                value={formik.values.active_time_minutes}
+                                onChange={formik.handleChange}
+                                onBlur={formik.handleBlur}
+                                placeholder="30"
+                            />
+                        </FormField>
+                    </Grid>
 
-          {formik.status && <div className="form-submit-error" role="alert">{formik.status}</div>}
+                    <FormField formik={formik} label="Etiquetas">
+                        {!!selectedTags.length && (
+                            <Flex flexWrap="wrap" gap="6px" mb="7px">
+                                {selectedTags.map((tag) => (
+                                    <Flex
+                                        key={tag.id}
+                                        align="center"
+                                        gap="4px"
+                                        py="5px"
+                                        pr="7px"
+                                        pl="9px"
+                                        color="#486f40"
+                                        bg={C.greenSoft}
+                                        borderRadius="8px"
+                                        fontSize="11px"
+                                    >
+                                        {tag.name}
+                                        <Button
+                                            type="button"
+                                            minW="17px"
+                                            w="17px"
+                                            h="17px"
+                                            p="0"
+                                            color="#64835d"
+                                            bg="transparent"
+                                            aria-label={`Quitar ${tag.name}`}
+                                            onClick={() =>
+                                                formik.setFieldValue(
+                                                    'tags',
+                                                    formik.values.tags.filter(
+                                                        (id) =>
+                                                            Number(id) !==
+                                                            Number(tag.id),
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            <PiX />
+                                        </Button>
+                                    </Flex>
+                                ))}
+                            </Flex>
+                        )}
+                        <Grid templateColumns="1fr 44px" gap="7px">
+                            <Box
+                                as="select"
+                                {...control()}
+                                h="44px"
+                                px="12px"
+                                value={selectedTag}
+                                onChange={(event) =>
+                                    setSelectedTag(event.target.value)
+                                }
+                            >
+                                <Option value="">Seleccionar etiqueta…</Option>
+                                {tags
+                                    .filter(
+                                        (tag) =>
+                                            !formik.values.tags.some(
+                                                (id) =>
+                                                    Number(id) ===
+                                                    Number(tag.id),
+                                            ),
+                                    )
+                                    .map((tag) => (
+                                        <Option key={tag.id} value={tag.id}>
+                                            {tag.name}
+                                        </Option>
+                                    ))}
+                            </Box>
+                            <Button
+                                type="button"
+                                h="44px"
+                                p="0"
+                                color={C.greenDark}
+                                bg="#f8fbf5"
+                                border="1px solid #a7c99d"
+                                disabled={!selectedTag}
+                                aria-label="Añadir etiqueta"
+                                onClick={addTag}
+                            >
+                                <PiPlus />
+                            </Button>
+                        </Grid>
+                        {!tagCreatorOpen ? (
+                            <AddButton onClick={() => setTagCreatorOpen(true)}>
+                                <PiTag /> Crear etiqueta nueva
+                            </AddButton>
+                        ) : (
+                            <Grid
+                                mt="7px"
+                                templateColumns="1fr 40px 40px"
+                                gap="6px"
+                            >
+                                <Input
+                                    {...control()}
+                                    value={newTagName}
+                                    onChange={(event) =>
+                                        setNewTagName(event.target.value)
+                                    }
+                                    placeholder="Nombre de la etiqueta"
+                                    maxLength={100}
+                                />
+                                <Button
+                                    type="button"
+                                    p="0"
+                                    color={C.greenDark}
+                                    bg="#f8fbf5"
+                                    border="1px solid #a7c99d"
+                                    disabled={
+                                        !newTagName.trim() ||
+                                        createTag.isPending
+                                    }
+                                    aria-label="Crear etiqueta"
+                                    onClick={createNewTag}
+                                >
+                                    <PiCheck />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    p="0"
+                                    color="#8d655f"
+                                    bg="#fff8f6"
+                                    border="1px solid #dfc2bc"
+                                    aria-label="Cancelar"
+                                    onClick={() => setTagCreatorOpen(false)}
+                                >
+                                    <PiX />
+                                </Button>
+                            </Grid>
+                        )}
+                        {createTag.isError && (
+                            <Text
+                                mt="4px"
+                                color={C.danger}
+                                fontSize="11px"
+                                role="alert"
+                            >
+                                No se ha podido crear la etiqueta.
+                            </Text>
+                        )}
+                    </FormField>
 
-          <button type="submit" className="primary-submit-button" disabled={isSaving}>
-            {isSaving ? 'Guardando receta…' : isEditing ? 'Guardar cambios' : 'Crear receta'}
-          </button>
-        </form>
-      </section>
-    </FormikProvider>
-  )
+                    <FieldArray name="ingredients">
+                        {({ push, remove }) => (
+                            <Box
+                                as="section"
+                                p="13px 12px 10px"
+                                bg="rgba(255,253,249,.48)"
+                                border="1px solid"
+                                borderColor={C.border}
+                                borderRadius="12px"
+                            >
+                                <Flex
+                                    align="center"
+                                    justify="space-between"
+                                    mb="9px"
+                                >
+                                    <Heading as="h2" fontSize="12px">
+                                        Ingredientes
+                                    </Heading>
+                                    <Text
+                                        minW="22px"
+                                        px="6px"
+                                        py="2px"
+                                        color={C.greenDark}
+                                        bg={C.greenSoft}
+                                        borderRadius="10px"
+                                        textAlign="center"
+                                        fontSize="10px"
+                                    >
+                                        {formik.values.ingredients.length}
+                                    </Text>
+                                </Flex>
+                                <Box as="datalist" id="ingredient-options">
+                                    {ingredients.map((item) => (
+                                        <Option
+                                            key={item.id}
+                                            value={item.name}
+                                        />
+                                    ))}
+                                </Box>
+                                <Grid gap="8px">
+                                    {formik.values.ingredients.map(
+                                        (item, index) => (
+                                            <Grid
+                                                key={index}
+                                                templateColumns="minmax(0,1.6fr) 72px 64px 30px"
+                                                gap={{ base: '4px', sm: '6px' }}
+                                                alignItems="start"
+                                            >
+                                                <Box minW="0">
+                                                    <Input
+                                                        {...smallControl(
+                                                            invalid(
+                                                                formik,
+                                                                `ingredients.${index}.name`,
+                                                            ) ||
+                                                                (getIn(
+                                                                    formik.touched,
+                                                                    `ingredients.${index}`,
+                                                                ) &&
+                                                                    typeof getIn(
+                                                                        formik.errors,
+                                                                        `ingredients.${index}`,
+                                                                    ) ===
+                                                                        'string'),
+                                                        )}
+                                                        name={`ingredients.${index}.name`}
+                                                        value={item.name}
+                                                        list="ingredient-options"
+                                                        placeholder="Ingrediente"
+                                                        aria-label={`Ingrediente ${index + 1}`}
+                                                        onBlur={
+                                                            formik.handleBlur
+                                                        }
+                                                        onChange={(event) => {
+                                                            const name =
+                                                                event.target
+                                                                    .value
+                                                            const match =
+                                                                ingredients.find(
+                                                                    (entry) =>
+                                                                        entry.name.toLocaleLowerCase() ===
+                                                                        name.toLocaleLowerCase(),
+                                                                )
+                                                            formik.setFieldValue(
+                                                                `ingredients.${index}.name`,
+                                                                name,
+                                                            )
+                                                            formik.setFieldValue(
+                                                                `ingredients.${index}.ingredient_id`,
+                                                                match?.id ?? '',
+                                                            )
+                                                        }}
+                                                    />
+                                                    <ErrorText
+                                                        formik={formik}
+                                                        name={`ingredients.${index}`}
+                                                    />
+                                                    <ErrorText
+                                                        formik={formik}
+                                                        name={`ingredients.${index}.name`}
+                                                    />
+                                                </Box>
+                                                <Box>
+                                                    <Input
+                                                        {...smallControl(
+                                                            invalid(
+                                                                formik,
+                                                                `ingredients.${index}.quantity`,
+                                                            ),
+                                                        )}
+                                                        name={`ingredients.${index}.quantity`}
+                                                        type="number"
+                                                        min="0"
+                                                        step="any"
+                                                        value={item.quantity}
+                                                        onChange={
+                                                            formik.handleChange
+                                                        }
+                                                        onBlur={
+                                                            formik.handleBlur
+                                                        }
+                                                        placeholder="Cant."
+                                                        aria-label={`Cantidad ${index + 1}`}
+                                                    />
+                                                    <ErrorText
+                                                        formik={formik}
+                                                        name={`ingredients.${index}.quantity`}
+                                                    />
+                                                </Box>
+                                                <Box
+                                                    as="select"
+                                                    {...smallControl(
+                                                        invalid(
+                                                            formik,
+                                                            `ingredients.${index}.unit`,
+                                                        ),
+                                                    )}
+                                                    name={`ingredients.${index}.unit`}
+                                                    value={item.unit}
+                                                    onChange={
+                                                        formik.handleChange
+                                                    }
+                                                    onBlur={formik.handleBlur}
+                                                    aria-label={`Unidad ${index + 1}`}
+                                                >
+                                                    <Option value="">
+                                                        Unidad…
+                                                    </Option>
+                                                    {UNITS.map((unit) => (
+                                                        <Option
+                                                            key={unit}
+                                                            value={unit}
+                                                        >
+                                                            {unit}
+                                                        </Option>
+                                                    ))}
+                                                </Box>
+                                                <RemoveButton
+                                                    aria-label={`Quitar ingrediente ${index + 1}`}
+                                                    onClick={() =>
+                                                        remove(index)
+                                                    }
+                                                />
+                                            </Grid>
+                                        ),
+                                    )}
+                                </Grid>
+                                <AddButton
+                                    onClick={() =>
+                                        push(createEmptyIngredient())
+                                    }
+                                >
+                                    <PiPlus /> Añadir ingrediente
+                                </AddButton>
+                            </Box>
+                        )}
+                    </FieldArray>
+
+                    <FieldArray name="components">
+                        {({ push, remove }) => (
+                            <Box
+                                as="section"
+                                p="13px 12px 10px"
+                                bg="rgba(255,253,249,.48)"
+                                border="1px solid"
+                                borderColor={C.border}
+                                borderRadius="12px"
+                            >
+                                <Flex
+                                    align="center"
+                                    justify="space-between"
+                                    mb="9px"
+                                >
+                                    <Heading as="h2" fontSize="12px">
+                                        Componentes utilizados
+                                    </Heading>
+                                    <Text
+                                        minW="22px"
+                                        px="6px"
+                                        py="2px"
+                                        color={C.greenDark}
+                                        bg={C.greenSoft}
+                                        borderRadius="10px"
+                                        textAlign="center"
+                                        fontSize="10px"
+                                    >
+                                        {formik.values.components.length}
+                                    </Text>
+                                </Flex>
+                                <Grid gap="8px">
+                                    {formik.values.components.map(
+                                        (item, index) => (
+                                            <Grid
+                                                key={index}
+                                                templateColumns="minmax(0,1fr) 92px 30px"
+                                                gap={{ base: '4px', sm: '6px' }}
+                                                alignItems="start"
+                                            >
+                                                <Box>
+                                                    <Box
+                                                        as="select"
+                                                        {...smallControl(
+                                                            invalid(
+                                                                formik,
+                                                                `components.${index}.component_id`,
+                                                            ),
+                                                        )}
+                                                        name={`components.${index}.component_id`}
+                                                        value={
+                                                            item.component_id
+                                                        }
+                                                        onChange={
+                                                            formik.handleChange
+                                                        }
+                                                        onBlur={
+                                                            formik.handleBlur
+                                                        }
+                                                        aria-label={`Componente ${index + 1}`}
+                                                    >
+                                                        <Option value="">
+                                                            Seleccionar
+                                                            componente…
+                                                        </Option>
+                                                        {components.map(
+                                                            (entry) => (
+                                                                <Option
+                                                                    key={
+                                                                        entry.id
+                                                                    }
+                                                                    value={
+                                                                        entry.id
+                                                                    }
+                                                                >
+                                                                    {entry.name}
+                                                                </Option>
+                                                            ),
+                                                        )}
+                                                    </Box>
+                                                    <ErrorText
+                                                        formik={formik}
+                                                        name={`components.${index}.component_id`}
+                                                    />
+                                                </Box>
+                                                <Box position="relative">
+                                                    <Input
+                                                        {...smallControl(
+                                                            invalid(
+                                                                formik,
+                                                                `components.${index}.portions`,
+                                                            ),
+                                                        )}
+                                                        pr="34px"
+                                                        name={`components.${index}.portions`}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.25"
+                                                        value={item.portions}
+                                                        onChange={
+                                                            formik.handleChange
+                                                        }
+                                                        onBlur={
+                                                            formik.handleBlur
+                                                        }
+                                                        aria-label={`Porciones ${index + 1}`}
+                                                    />
+                                                    <Text
+                                                        position="absolute"
+                                                        top="11px"
+                                                        right="6px"
+                                                        color="#8d877e"
+                                                        pointerEvents="none"
+                                                        fontSize="8px"
+                                                    >
+                                                        porciones
+                                                    </Text>
+                                                    <ErrorText
+                                                        formik={formik}
+                                                        name={`components.${index}.portions`}
+                                                    />
+                                                </Box>
+                                                <RemoveButton
+                                                    aria-label={`Quitar componente ${index + 1}`}
+                                                    onClick={() =>
+                                                        remove(index)
+                                                    }
+                                                />
+                                            </Grid>
+                                        ),
+                                    )}
+                                </Grid>
+                                <AddButton
+                                    onClick={() => push(createEmptyComponent())}
+                                >
+                                    <PiPlus /> Añadir componente
+                                </AddButton>
+                                <Text
+                                    mx="8px"
+                                    mt="6px"
+                                    color="#928b82"
+                                    fontSize="9px"
+                                >
+                                    Los componentes nuevos deben crearse antes
+                                    desde la sección Componentes.
+                                </Text>
+                            </Box>
+                        )}
+                    </FieldArray>
+
+                    <FormField
+                        formik={formik}
+                        label="Instrucciones"
+                        name="instructions"
+                    >
+                        <Textarea
+                            {...control()}
+                            id="instructions"
+                            name="instructions"
+                            value={formik.values.instructions}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            placeholder="Describe los pasos para preparar la receta…"
+                            rows={6}
+                        />
+                    </FormField>
+                    <Flex
+                        as="label"
+                        position="relative"
+                        align="center"
+                        justify="space-between"
+                        gap="14px"
+                        p="12px 13px"
+                        bg="rgba(255,253,249,.54)"
+                        border="1px solid"
+                        borderColor={C.border}
+                        borderRadius="11px"
+                        cursor="pointer"
+                    >
+                        <Grid>
+                            <Text as="strong" fontSize="12px">
+                                Receta activa
+                            </Text>
+                            <Text fontSize="10px" color={C.muted}>
+                                Estará disponible para planificar comidas.
+                            </Text>
+                        </Grid>
+                        <Input
+                            position="absolute"
+                            w="1px"
+                            h="1px"
+                            opacity="0"
+                            type="checkbox"
+                            name="is_active"
+                            checked={formik.values.is_active}
+                            onChange={formik.handleChange}
+                        />
+                        <Flex
+                            w="40px"
+                            h="23px"
+                            align="center"
+                            justify={
+                                formik.values.is_active
+                                    ? 'flex-end'
+                                    : 'flex-start'
+                            }
+                            p="3px"
+                            bg={formik.values.is_active ? C.green : '#cfc9c0'}
+                            borderRadius="20px"
+                        >
+                            <Box
+                                w="17px"
+                                h="17px"
+                                bg="white"
+                                borderRadius="50%"
+                                boxShadow="0 1px 3px rgba(0,0,0,.15)"
+                            />
+                        </Flex>
+                    </Flex>
+                    {formik.status && (
+                        <Box
+                            p="10px 12px"
+                            color="#9c4141"
+                            bg="#fff0ed"
+                            border="1px solid #edc4bd"
+                            borderRadius="9px"
+                            fontSize="11px"
+                            role="alert"
+                        >
+                            {formik.status}
+                        </Box>
+                    )}
+                    <Button
+                        type="submit"
+                        h="47px"
+                        color="white"
+                        bg="linear-gradient(145deg,#63a95e,#408746)"
+                        borderRadius="11px"
+                        boxShadow="0 7px 18px rgba(60,124,62,.22)"
+                        fontSize="13px"
+                        fontWeight="750"
+                        disabled={isSaving}
+                    >
+                        {isSaving
+                            ? 'Guardando receta…'
+                            : isEditing
+                              ? 'Guardar cambios'
+                              : 'Crear receta'}
+                    </Button>
+                </Grid>
+            </Box>
+        </FormikProvider>
+    )
 }
 
 export default RecipeForm

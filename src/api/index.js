@@ -1,7 +1,7 @@
 export { default as apiClient } from './apiClient'
 export { createCrudApi } from './baseApi'
 export { componentsApi } from './componentsApi'
-export { freezerApi } from './freezerApi'
+export { storageApi } from './storageApi'
 export { ingredientsApi } from './ingredientsApi'
 export { mealPlanItemsApi } from './mealPlanItemsApi'
 export { mealPlansApi } from './mealPlansApi'

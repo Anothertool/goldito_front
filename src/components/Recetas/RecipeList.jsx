@@ -153,7 +153,7 @@ function RecipeList() {
       </div>
 
       {filtersOpen && (
-        <div className="recipe-filters">
+         <div className="recipe-filters">
           <label>
             Tipo de comida
             <select value={mealType} onChange={(event) => {

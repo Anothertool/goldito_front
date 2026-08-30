@@ -16,7 +16,7 @@ import {
 const NAV_ITEMS = [
   { to: '/', label: 'Inicio', icon: PiHouse, activeIcon: PiHouseFill, end: true },
   { to: '/recetas', label: 'Recetas', icon: PiBookOpen, activeIcon: PiBookOpenFill },
-  { to: '/freezer', label: 'Freezer', icon: PiSnowflake, activeIcon: PiSnowflakeFill },
+  { to: '/storage', label: 'Storage', icon: PiSnowflake, activeIcon: PiSnowflakeFill },
   { to: '/planificador', label: 'Plan', icon: PiCalendarBlank, activeIcon: PiCalendarBlankFill },
   { to: '/componentes', label: 'Más', icon: PiDotsThreeCircle, activeIcon: PiDotsThreeCircleFill },
 ]

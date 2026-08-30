@@ -26,9 +26,9 @@ const MENU_CARDS = [
     color: '#e0a83e',
   },
   {
-    to: '/freezer',
+    to: '/storage',
     icon: PiSnowflakeFill,
-    title: 'Freezer',
+    title: 'Storage',
     subtitle: 'Gestiona lo que tienes congelado',
     bg: '#dbeef5',
     color: '#5aa9c2',
@@ -46,7 +46,7 @@ const MENU_CARDS = [
 const SUMMARY = [
   { label: 'Recetas', value: 0 },
   { label: 'Componentes', value: 0 },
-  { label: 'Raciones en el freezer', value: 0 },
+  { label: 'Raciones en storage', value: 0 },
 ]
 
 function Home() {
