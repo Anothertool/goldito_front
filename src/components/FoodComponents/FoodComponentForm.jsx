@@ -3,7 +3,7 @@ import { FormikProvider, getIn, useFormik } from 'formik'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PiArrowLeft, PiCookingPot, PiSnowflake } from 'react-icons/pi'
-import { componentsApi, ingredientsApi } from '@/api'
+import { componentsApi } from '@/api'
 import IngredientsField from '@/components/Ingredients/IngredientsField'
 import {
     getComponentInitialValues,
@@ -35,12 +35,6 @@ function FoodComponentForm() {
     const componentQuery = useQuery(componentsApi.queries.detail(componentId))
     const createComponent = useMutation(componentsApi.mutations.create())
     const updateComponent = useMutation(componentsApi.mutations.partialUpdate())
-    const ingredientsQuery = useQuery(
-        ingredientsApi.queries.list({ page_size: 100, ordering: 'name' }),
-    )
-    const ingredients = Array.isArray(ingredientsQuery.data)
-        ? ingredientsQuery.data
-        : (ingredientsQuery.data?.results ?? [])
     const formInitialValues = useMemo(
         () => getComponentInitialValues(componentQuery.data),
         [componentQuery.data],
@@ -164,11 +158,7 @@ function FoodComponentForm() {
                         <FieldError formik={formik} name="name" />
                     </div>
 
-                    <IngredientsField
-                        formik={formik}
-                        ingredientOptions={ingredients}
-                        datalistId="component-ingredient-options"
-                    />
+                    <IngredientsField formik={formik} />
 
                     <div className="food-component-form-field">
                         <label htmlFor="description">

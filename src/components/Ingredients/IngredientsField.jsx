@@ -1,6 +1,10 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Box, Button, Flex, Grid, Heading, Input, Text } from '@chakra-ui/react'
+import { useQuery } from '@tanstack/react-query'
 import { FieldArray, getIn } from 'formik'
 import { PiMinus, PiPlus } from 'react-icons/pi'
+import CreatableSelect from 'react-select/creatable'
+import { ingredientsApi } from '@/api'
 import { createEmptyIngredient } from './utils'
 
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta']
@@ -45,13 +49,120 @@ function ErrorText({ formik, name }) {
     )
 }
 
+function useDebouncedValue(value, delay = 300) {
+    const [debouncedValue, setDebouncedValue] = useState(value)
+
+    useEffect(() => {
+        const timeoutId = window.setTimeout(
+            () => setDebouncedValue(value.trim()),
+            delay,
+        )
+        return () => window.clearTimeout(timeoutId)
+    }, [delay, value])
+
+    return debouncedValue
+}
+
+const getResults = (data) =>
+    Array.isArray(data) ? data : (data?.results ?? [])
+
+const selectStyles = (invalid) => ({
+    control: (base, state) => ({
+        ...base,
+        minHeight: '38px',
+        height: '38px',
+        background: 'rgba(255,253,249,.76)',
+        borderColor: invalid
+            ? COLORS.danger
+            : state.isFocused
+              ? '#86b47c'
+              : COLORS.border,
+        borderRadius: '8px',
+        boxShadow: state.isFocused
+            ? `0 0 0 3px ${invalid ? 'rgba(189,77,77,.1)' : 'rgba(86,157,83,.1)'}`
+            : 'none',
+        fontSize: '11px',
+        '&:hover': { borderColor: invalid ? COLORS.danger : '#86b47c' },
+    }),
+    valueContainer: (base) => ({ ...base, padding: '0 8px' }),
+    input: (base) => ({ ...base, margin: 0, color: COLORS.ink }),
+    indicatorsContainer: (base) => ({ ...base, height: '36px' }),
+    menu: (base) => ({ ...base, zIndex: 20, fontSize: '12px' }),
+    option: (base, state) => ({
+        ...base,
+        color: COLORS.ink,
+        background: state.isSelected
+            ? COLORS.greenSoft
+            : state.isFocused
+              ? '#f5f0e8'
+              : '#fffdf9',
+    }),
+})
+
+function IngredientSelect({ formik, item, rowName, index, invalid }) {
+    const [inputValue, setInputValue] = useState('')
+    const debouncedSearch = useDebouncedValue(inputValue)
+    const searchQuery = useQuery(ingredientsApi.queries.search(debouncedSearch))
+    const options = useMemo(() => {
+        if (
+            debouncedSearch.length < 3 ||
+            debouncedSearch !== inputValue.trim()
+        ) {
+            return []
+        }
+        return getResults(searchQuery.data).map((ingredient) => ({
+            value: ingredient.id,
+            label: ingredient.name,
+        }))
+    }, [debouncedSearch, inputValue, searchQuery.data])
+    const value = item.ingredient_id
+        ? { value: item.ingredient_id, label: item.name }
+        : item.name
+          ? { value: `new:${item.name}`, label: item.name, __isNew__: true }
+          : null
+
+    return (
+        <CreatableSelect
+            instanceId={`${rowName}-select`}
+            inputId={`${rowName}-select`}
+            aria-label={`Ingrediente ${index + 1}`}
+            value={value}
+            options={options}
+            inputValue={inputValue}
+            isLoading={searchQuery.isFetching}
+            isClearable
+            filterOption={null}
+            styles={selectStyles(invalid)}
+            placeholder="Buscar ingrediente"
+            formatCreateLabel={(text) =>
+                `Usar "${text}" como nuevo ingrediente`
+            }
+            noOptionsMessage={() => {
+                if (inputValue.trim().length < 3) {
+                    return 'Escribe al menos 3 letras'
+                }
+                if (searchQuery.isError) return 'No se pudo buscar'
+                if (searchQuery.isFetching) return 'Buscando…'
+                return 'Sin resultados'
+            }}
+            onInputChange={(nextValue, action) => {
+                if (action.action === 'input-change') setInputValue(nextValue)
+            }}
+            onChange={(option) => {
+                formik.setFieldValue(
+                    `${rowName}.ingredient_id`,
+                    option && !option.__isNew__ ? option.value : '',
+                )
+                formik.setFieldValue(`${rowName}.name`, option?.label ?? '')
+                setInputValue('')
+            }}
+            onBlur={() => formik.setFieldTouched(`${rowName}.name`, true)}
+        />
+    )
+}
+
 /** Shared searchable ingredient editor for recipes and food components. */
-function IngredientsField({
-    formik,
-    ingredientOptions = [],
-    name = 'ingredients',
-    datalistId = 'ingredient-options',
-}) {
+function IngredientsField({ formik, name = 'ingredients' }) {
     const values = getIn(formik.values, name) ?? []
 
     return (
@@ -83,15 +194,6 @@ function IngredientsField({
                         </Text>
                     </Flex>
 
-                    <datalist id={datalistId}>
-                        {ingredientOptions.map((ingredient) => (
-                            <option
-                                key={ingredient.id}
-                                value={ingredient.name}
-                            />
-                        ))}
-                    </datalist>
-
                     <Grid gap="8px">
                         {values.map((item, index) => {
                             const rowName = `${name}.${index}`
@@ -104,46 +206,18 @@ function IngredientsField({
                                     alignItems="start"
                                 >
                                     <Box minW="0">
-                                        <Input
-                                            {...control(
-                                                Boolean(
-                                                    rowError ||
-                                                    getError(
-                                                        formik,
-                                                        `${rowName}.name`,
-                                                    ),
+                                        <IngredientSelect
+                                            formik={formik}
+                                            item={item}
+                                            rowName={rowName}
+                                            index={index}
+                                            invalid={Boolean(
+                                                rowError ||
+                                                getError(
+                                                    formik,
+                                                    `${rowName}.name`,
                                                 ),
                                             )}
-                                            name={`${rowName}.name`}
-                                            value={item.name}
-                                            list={datalistId}
-                                            placeholder="Buscar ingrediente"
-                                            aria-label={`Ingrediente ${index + 1}`}
-                                            onBlur={formik.handleBlur}
-                                            onChange={(event) => {
-                                                const ingredientName =
-                                                    event.target.value
-                                                const match =
-                                                    ingredientOptions.find(
-                                                        (entry) =>
-                                                            entry.name.localeCompare(
-                                                                ingredientName,
-                                                                undefined,
-                                                                {
-                                                                    sensitivity:
-                                                                        'accent',
-                                                                },
-                                                            ) === 0,
-                                                    )
-                                                formik.setFieldValue(
-                                                    `${rowName}.name`,
-                                                    ingredientName,
-                                                )
-                                                formik.setFieldValue(
-                                                    `${rowName}.ingredient_id`,
-                                                    match?.id ?? '',
-                                                )
-                                            }}
                                         />
                                         <ErrorText
                                             formik={formik}

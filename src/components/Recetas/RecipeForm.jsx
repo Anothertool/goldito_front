@@ -23,7 +23,7 @@ import {
     PiTag,
     PiX,
 } from 'react-icons/pi'
-import { componentsApi, ingredientsApi, recipeTagsApi, recipesApi } from '@/api'
+import { componentsApi, recipeTagsApi, recipesApi } from '@/api'
 import IngredientsField from '@/components/Ingredients/IngredientsField'
 import {
     createEmptyComponent,
@@ -211,9 +211,6 @@ function RecipeForm() {
     const tagsQuery = useQuery(
         recipeTagsApi.queries.list({ page_size: 100, ordering: 'name' }),
     )
-    const ingredientsQuery = useQuery(
-        ingredientsApi.queries.list({ page_size: 100, ordering: 'name' }),
-    )
     const componentsQuery = useQuery(
         componentsApi.queries.list({
             page_size: 100,
@@ -225,7 +222,6 @@ function RecipeForm() {
     const updateRecipe = useMutation(recipesApi.mutations.partialUpdate())
     const createTag = useMutation(recipeTagsApi.mutations.create())
     const tags = getResults(tagsQuery.data)
-    const ingredients = getResults(ingredientsQuery.data)
     const components = getResults(componentsQuery.data)
     const initialValues = useMemo(
         () => getRecipeInitialValues(recipeQuery.data),
@@ -816,11 +812,7 @@ function RecipeForm() {
                         )}
                     </FormField>
 
-                    <IngredientsField
-                        formik={formik}
-                        ingredientOptions={ingredients}
-                        datalistId="recipe-ingredient-options"
-                    />
+                    <IngredientsField formik={formik} />
 
                     <FieldArray name="components">
                         {({ push, remove }) => (
