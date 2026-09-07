@@ -8,10 +8,11 @@ import {
     Image,
     Input,
     Spinner,
+    Stack,
     Text,
     Textarea,
 } from '@chakra-ui/react'
-import { FieldArray, FormikProvider, getIn, useFormik } from 'formik'
+import { FormikProvider, getIn, useFormik } from 'formik'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -25,8 +26,8 @@ import {
 } from 'react-icons/pi'
 import { componentsApi, recipeTagsApi, recipesApi } from '@/api'
 import IngredientsField from '@/components/Ingredients/IngredientsField'
+import MultiSelectField from '@/components/ui/MultiSelectField'
 import {
-    createEmptyComponent,
     getRecipeInitialValues,
     toRecipePayload,
     validationSchema,
@@ -166,25 +167,6 @@ const AddButton = (props) => (
         {...props}
     />
 )
-const RemoveButton = (props) => (
-    <Button
-        type="button"
-        minW="25px"
-        w="25px"
-        h="25px"
-        mt="7px"
-        mx="auto"
-        p="0"
-        color={C.danger}
-        bg="#fff7f5"
-        border="1px solid #e98f8f"
-        borderRadius="50%"
-        {...props}
-    >
-        <PiMinus />
-    </Button>
-)
-const Option = (props) => <Box as="option" {...props} />
 
 function RecipeForm() {
     const navigate = useNavigate()
@@ -194,7 +176,6 @@ function RecipeForm() {
     const returnTo = location.state?.returnTo ?? '/recetas'
     const returnState = location.state?.returnState
     const navigateBack = () => navigate(returnTo, { state: returnState })
-    const [selectedTag, setSelectedTag] = useState('')
     const [newTagName, setNewTagName] = useState('')
     const [tagCreatorOpen, setTagCreatorOpen] = useState(false)
     const [imagePreview, setImagePreview] = useState('')
@@ -286,12 +267,6 @@ function RecipeForm() {
         await formik.submitForm()
     }
 
-    const addTag = () => {
-        const id = Number(selectedTag)
-        if (id && !formik.values.tags.includes(id))
-            formik.setFieldValue('tags', [...formik.values.tags, id])
-        setSelectedTag('')
-    }
     const createNewTag = async () => {
         const name = newTagName.trim()
         if (!name) return
@@ -669,90 +644,30 @@ function RecipeForm() {
                         </FormField>
                     </Grid>
 
-                    <FormField formik={formik} label="Etiquetas">
-                        {!!selectedTags.length && (
-                            <Flex flexWrap="wrap" gap="6px" mb="7px">
-                                {selectedTags.map((tag) => (
-                                    <Flex
-                                        key={tag.id}
-                                        align="center"
-                                        gap="4px"
-                                        py="5px"
-                                        pr="7px"
-                                        pl="9px"
-                                        color="#486f40"
-                                        bg={C.greenSoft}
-                                        borderRadius="8px"
-                                        fontSize="11px"
-                                    >
-                                        {tag.name}
-                                        <Button
-                                            type="button"
-                                            minW="17px"
-                                            w="17px"
-                                            h="17px"
-                                            p="0"
-                                            color="#64835d"
-                                            bg="transparent"
-                                            aria-label={`Quitar ${tag.name}`}
-                                            onClick={() =>
-                                                formik.setFieldValue(
-                                                    'tags',
-                                                    formik.values.tags.filter(
-                                                        (id) =>
-                                                            Number(id) !==
-                                                            Number(tag.id),
-                                                    ),
-                                                )
-                                            }
-                                        >
-                                            <PiX />
-                                        </Button>
-                                    </Flex>
-                                ))}
-                            </Flex>
-                        )}
-                        <Grid templateColumns="1fr 44px" gap="7px">
-                            <Box
-                                as="select"
-                                {...control()}
-                                h="44px"
-                                px="12px"
-                                value={selectedTag}
-                                onChange={(event) =>
-                                    setSelectedTag(event.target.value)
-                                }
-                            >
-                                <Option value="">Seleccionar etiqueta…</Option>
-                                {tags
-                                    .filter(
-                                        (tag) =>
-                                            !formik.values.tags.some(
-                                                (id) =>
-                                                    Number(id) ===
-                                                    Number(tag.id),
-                                            ),
-                                    )
-                                    .map((tag) => (
-                                        <Option key={tag.id} value={tag.id}>
-                                            {tag.name}
-                                        </Option>
-                                    ))}
-                            </Box>
-                            <Button
-                                type="button"
-                                h="44px"
-                                p="0"
-                                color={C.greenDark}
-                                bg="#f8fbf5"
-                                border="1px solid #a7c99d"
-                                disabled={!selectedTag}
-                                aria-label="Añadir etiqueta"
-                                onClick={addTag}
-                            >
-                                <PiPlus />
-                            </Button>
-                        </Grid>
+                    <FormField formik={formik} label="Etiquetas" name="tags">
+                        <MultiSelectField
+                            inputId="tags"
+                            instanceId="recipe-tags"
+                            name="tags"
+                            options={tags.map((tag) => ({
+                                value: Number(tag.id),
+                                label: tag.name,
+                            }))}
+                            value={selectedTags.map((tag) => ({
+                                value: Number(tag.id),
+                                label: tag.name,
+                            }))}
+                            onChange={(options) =>
+                                formik.setFieldValue(
+                                    'tags',
+                                    options.map((option) => option.value),
+                                )
+                            }
+                            onBlur={() => formik.setFieldTouched('tags', true)}
+                            isLoading={tagsQuery.isFetching}
+                            invalid={invalid(formik, 'tags')}
+                            placeholder="Seleccionar etiquetas?"
+                        />
                         {!tagCreatorOpen ? (
                             <AddButton onClick={() => setTagCreatorOpen(true)}>
                                 <PiTag /> Crear etiqueta nueva
@@ -814,155 +729,143 @@ function RecipeForm() {
 
                     <IngredientsField formik={formik} />
 
-                    <FieldArray name="components">
-                        {({ push, remove }) => (
-                            <Box
-                                as="section"
-                                p="13px 12px 10px"
-                                bg="rgba(255,253,249,.48)"
-                                border="1px solid"
-                                borderColor={C.border}
-                                borderRadius="12px"
-                            >
+                    <Box
+                        as="section"
+                        p="3"
+                        bg="rgba(255,253,249,.48)"
+                        border="1px solid"
+                        borderColor={C.border}
+                        borderRadius="12px"
+                    >
+                        <Text
+                            as="label"
+                            htmlFor="recipe-components"
+                            display="block"
+                            fontSize="12px"
+                            fontWeight="700"
+                            mb="2"
+                        >
+                            Componentes utilizados
+                        </Text>
+                        <MultiSelectField
+                            inputId="recipe-components"
+                            instanceId="recipe-components"
+                            name="components"
+                            options={components
+                                .filter((item) => item.is_active !== false)
+                                .map((item) => ({
+                                    value: Number(item.id),
+                                    label: item.name,
+                                }))}
+                            value={formik.values.components.map((item) => ({
+                                value: Number(item.component_id),
+                                label:
+                                    components.find(
+                                        (entry) =>
+                                            Number(entry.id) ===
+                                            Number(item.component_id),
+                                    )?.name ??
+                                    recipeQuery.data?.components?.find(
+                                        (entry) =>
+                                            Number(
+                                                entry.component_id ??
+                                                    entry.component?.id ??
+                                                    entry.id,
+                                            ) === Number(item.component_id),
+                                    )?.component?.name ??
+                                    'Componente ' + item.component_id,
+                            }))}
+                            onChange={(options) => {
+                                formik.setFieldValue(
+                                    'components',
+                                    options.map(
+                                        (option) =>
+                                            formik.values.components.find(
+                                                (item) =>
+                                                    Number(
+                                                        item.component_id,
+                                                    ) === option.value,
+                                            ) ?? {
+                                                component_id: option.value,
+                                                portions: 1,
+                                            },
+                                    ),
+                                )
+                                formik.setFieldTouched(
+                                    'components',
+                                    false,
+                                    false,
+                                )
+                            }}
+                            onBlur={() =>
+                                formik.setFieldTouched('components', true)
+                            }
+                            isLoading={componentsQuery.isFetching}
+                            invalid={invalid(formik, 'components')}
+                            placeholder="Seleccionar componentes?"
+                        />
+                        <ErrorText formik={formik} name="components" />
+                        <Stack gap="2" mt="3">
+                            {formik.values.components.map((item, index) => (
                                 <Flex
-                                    align="center"
-                                    justify="space-between"
-                                    mb="9px"
+                                    key={item.component_id}
+                                    align="start"
+                                    gap="3"
                                 >
-                                    <Heading as="h2" fontSize="12px">
-                                        Componentes utilizados
-                                    </Heading>
-                                    <Text
-                                        minW="22px"
-                                        px="6px"
-                                        py="2px"
-                                        color={C.greenDark}
-                                        bg={C.greenSoft}
-                                        borderRadius="10px"
-                                        textAlign="center"
-                                        fontSize="10px"
-                                    >
-                                        {formik.values.components.length}
+                                    <Text flex="1" fontSize="12px" pt="2">
+                                        {components.find(
+                                            (entry) =>
+                                                Number(entry.id) ===
+                                                Number(item.component_id),
+                                        )?.name ??
+                                            'Componente ' + item.component_id}
                                     </Text>
+                                    <Box w="110px">
+                                        <Input
+                                            {...smallControl(
+                                                invalid(
+                                                    formik,
+                                                    'components.' +
+                                                        index +
+                                                        '.portions',
+                                                ),
+                                            )}
+                                            name={
+                                                'components.' +
+                                                index +
+                                                '.portions'
+                                            }
+                                            type="number"
+                                            min="0"
+                                            step="0.25"
+                                            value={item.portions}
+                                            onChange={formik.handleChange}
+                                            onBlur={formik.handleBlur}
+                                            aria-label={
+                                                'Porciones del componente ' +
+                                                (index + 1)
+                                            }
+                                        />
+                                        <Text fontSize="10px" color={C.muted}>
+                                            Porciones
+                                        </Text>
+                                        <ErrorText
+                                            formik={formik}
+                                            name={
+                                                'components.' +
+                                                index +
+                                                '.portions'
+                                            }
+                                        />
+                                    </Box>
                                 </Flex>
-                                <Grid gap="8px">
-                                    {formik.values.components.map(
-                                        (item, index) => (
-                                            <Grid
-                                                key={index}
-                                                templateColumns="minmax(0,1fr) 92px 30px"
-                                                gap={{ base: '4px', sm: '6px' }}
-                                                alignItems="start"
-                                            >
-                                                <Box>
-                                                    <Box
-                                                        as="select"
-                                                        {...smallControl(
-                                                            invalid(
-                                                                formik,
-                                                                `components.${index}.component_id`,
-                                                            ),
-                                                        )}
-                                                        name={`components.${index}.component_id`}
-                                                        value={
-                                                            item.component_id
-                                                        }
-                                                        onChange={
-                                                            formik.handleChange
-                                                        }
-                                                        onBlur={
-                                                            formik.handleBlur
-                                                        }
-                                                        aria-label={`Componente ${index + 1}`}
-                                                    >
-                                                        <Option value="">
-                                                            Seleccionar
-                                                            componente…
-                                                        </Option>
-                                                        {components.map(
-                                                            (entry) => (
-                                                                <Option
-                                                                    key={
-                                                                        entry.id
-                                                                    }
-                                                                    value={
-                                                                        entry.id
-                                                                    }
-                                                                >
-                                                                    {entry.name}
-                                                                </Option>
-                                                            ),
-                                                        )}
-                                                    </Box>
-                                                    <ErrorText
-                                                        formik={formik}
-                                                        name={`components.${index}.component_id`}
-                                                    />
-                                                </Box>
-                                                <Box position="relative">
-                                                    <Input
-                                                        {...smallControl(
-                                                            invalid(
-                                                                formik,
-                                                                `components.${index}.portions`,
-                                                            ),
-                                                        )}
-                                                        pr="34px"
-                                                        name={`components.${index}.portions`}
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.25"
-                                                        value={item.portions}
-                                                        onChange={
-                                                            formik.handleChange
-                                                        }
-                                                        onBlur={
-                                                            formik.handleBlur
-                                                        }
-                                                        aria-label={`Porciones ${index + 1}`}
-                                                    />
-                                                    <Text
-                                                        position="absolute"
-                                                        top="11px"
-                                                        right="6px"
-                                                        color="#8d877e"
-                                                        pointerEvents="none"
-                                                        fontSize="8px"
-                                                    >
-                                                        porciones
-                                                    </Text>
-                                                    <ErrorText
-                                                        formik={formik}
-                                                        name={`components.${index}.portions`}
-                                                    />
-                                                </Box>
-                                                <RemoveButton
-                                                    aria-label={`Quitar componente ${index + 1}`}
-                                                    onClick={() =>
-                                                        remove(index)
-                                                    }
-                                                />
-                                            </Grid>
-                                        ),
-                                    )}
-                                </Grid>
-                                <AddButton
-                                    onClick={() => push(createEmptyComponent())}
-                                >
-                                    <PiPlus /> Añadir componente
-                                </AddButton>
-                                <Text
-                                    mx="8px"
-                                    mt="6px"
-                                    color="#928b82"
-                                    fontSize="9px"
-                                >
-                                    Los componentes nuevos deben crearse antes
-                                    desde la sección Componentes.
-                                </Text>
-                            </Box>
-                        )}
-                    </FieldArray>
+                            ))}
+                        </Stack>
+                        <Text mt="2" color={C.muted} fontSize="11px">
+                            Los componentes nuevos deben crearse antes desde la
+                            secci?n Componentes.
+                        </Text>
+                    </Box>
 
                     <FormField
                         formik={formik}

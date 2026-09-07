@@ -3,7 +3,7 @@ import { Box, Button, Flex, Grid, Heading, Input, Text } from '@chakra-ui/react'
 import { useQuery } from '@tanstack/react-query'
 import { FieldArray, getIn } from 'formik'
 import { PiMinus, PiPlus } from 'react-icons/pi'
-import CreatableSelect from 'react-select/creatable'
+import MultiSelectField from '@/components/ui/MultiSelectField'
 import { ingredientsApi } from '@/api'
 import { createEmptyIngredient } from './utils'
 
@@ -66,39 +66,6 @@ function useDebouncedValue(value, delay = 300) {
 const getResults = (data) =>
     Array.isArray(data) ? data : (data?.results ?? [])
 
-const selectStyles = (invalid) => ({
-    control: (base, state) => ({
-        ...base,
-        minHeight: '38px',
-        height: '38px',
-        background: 'rgba(255,253,249,.76)',
-        borderColor: invalid
-            ? COLORS.danger
-            : state.isFocused
-              ? '#86b47c'
-              : COLORS.border,
-        borderRadius: '8px',
-        boxShadow: state.isFocused
-            ? `0 0 0 3px ${invalid ? 'rgba(189,77,77,.1)' : 'rgba(86,157,83,.1)'}`
-            : 'none',
-        fontSize: '11px',
-        '&:hover': { borderColor: invalid ? COLORS.danger : '#86b47c' },
-    }),
-    valueContainer: (base) => ({ ...base, padding: '0 8px' }),
-    input: (base) => ({ ...base, margin: 0, color: COLORS.ink }),
-    indicatorsContainer: (base) => ({ ...base, height: '36px' }),
-    menu: (base) => ({ ...base, zIndex: 20, fontSize: '12px' }),
-    option: (base, state) => ({
-        ...base,
-        color: COLORS.ink,
-        background: state.isSelected
-            ? COLORS.greenSoft
-            : state.isFocused
-              ? '#f5f0e8'
-              : '#fffdf9',
-    }),
-})
-
 function IngredientSelect({ formik, item, rowName, index, invalid }) {
     const [inputValue, setInputValue] = useState('')
     const debouncedSearch = useDebouncedValue(inputValue)
@@ -122,7 +89,10 @@ function IngredientSelect({ formik, item, rowName, index, invalid }) {
           : null
 
     return (
-        <CreatableSelect
+        <MultiSelectField
+            creatable
+            isMulti={false}
+            invalid={invalid}
             instanceId={`${rowName}-select`}
             inputId={`${rowName}-select`}
             aria-label={`Ingrediente ${index + 1}`}
@@ -132,7 +102,6 @@ function IngredientSelect({ formik, item, rowName, index, invalid }) {
             isLoading={searchQuery.isFetching}
             isClearable
             filterOption={null}
-            styles={selectStyles(invalid)}
             placeholder="Buscar ingrediente"
             formatCreateLabel={(text) =>
                 `Usar "${text}" como nuevo ingrediente`
@@ -201,7 +170,10 @@ function IngredientsField({ formik, name = 'ingredients' }) {
                             return (
                                 <Grid
                                     key={index}
-                                    templateColumns="minmax(0,1.6fr) 72px 64px 30px"
+                                    templateColumns={{
+                                        base: 'minmax(0,1fr) 72px 100px 26px',
+                                        sm: 'minmax(0,1.6fr) 72px 110px 30px',
+                                    }}
                                     gap={{ base: '4px', sm: '6px' }}
                                     alignItems="start"
                                 >
@@ -253,29 +225,41 @@ function IngredientsField({ formik, name = 'ingredients' }) {
                                             name={`${rowName}.quantity`}
                                         />
                                     </Box>
-                                    <Box
-                                        as="select"
-                                        {...control(
-                                            Boolean(
-                                                getError(
-                                                    formik,
-                                                    `${rowName}.unit`,
-                                                ),
-                                            ),
+                                    <MultiSelectField
+                                        isMulti={false}
+                                        instanceId={rowName + '-unit'}
+                                        inputId={rowName + '-unit'}
+                                        name={rowName + '.unit'}
+                                        options={UNITS.map((unit) => ({
+                                            value: unit,
+                                            label: unit,
+                                        }))}
+                                        value={
+                                            item.unit
+                                                ? {
+                                                      value: item.unit,
+                                                      label: item.unit,
+                                                  }
+                                                : null
+                                        }
+                                        onChange={(option) =>
+                                            formik.setFieldValue(
+                                                rowName + '.unit',
+                                                option?.value ?? '',
+                                            )
+                                        }
+                                        onBlur={() =>
+                                            formik.setFieldTouched(
+                                                rowName + '.unit',
+                                                true,
+                                            )
+                                        }
+                                        invalid={Boolean(
+                                            getError(formik, rowName + '.unit'),
                                         )}
-                                        name={`${rowName}.unit`}
-                                        value={item.unit}
-                                        onChange={formik.handleChange}
-                                        onBlur={formik.handleBlur}
-                                        aria-label={`Unidad ${index + 1}`}
-                                    >
-                                        <option value="">Unidad…</option>
-                                        {UNITS.map((unit) => (
-                                            <option key={unit} value={unit}>
-                                                {unit}
-                                            </option>
-                                        ))}
-                                    </Box>
+                                        aria-label={'Unidad ' + (index + 1)}
+                                        placeholder="Unidad"
+                                    />
                                     <Button
                                         type="button"
                                         minW="25px"

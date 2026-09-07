@@ -5,7 +5,6 @@ import { mealPlansApi } from '@/api'
 import PlannerForm from '@/components/Planner/PlannerForm'
 import MealPlanView from '@/components/Planner/MealPlanView'
 import { getClosestMonday } from '@/components/Planner/plannerDates'
-import '@/components/Planner/planner.css'
 
 function Planner() {
     const location = useLocation()

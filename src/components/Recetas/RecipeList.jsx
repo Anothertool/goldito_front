@@ -1,244 +1,344 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
+import {
+    Badge,
+    Box,
+    Button,
+    Flex,
+    Grid,
+    Heading,
+    IconButton,
+    Input,
+    Spinner,
+    Stack,
+    Text,
+} from '@chakra-ui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
-  PiBowlFood,
-  PiCaretLeft,
-  PiCaretRight,
-  PiClock,
-  PiDotsThreeVertical,
-  PiFunnel,
-  PiMagnifyingGlass,
-  PiPlus,
-  PiUsers,
+    PiBowlFood,
+    PiCaretLeft,
+    PiCaretRight,
+    PiFunnel,
+    PiMagnifyingGlass,
+    PiPlus,
 } from 'react-icons/pi'
 import { recipesApi } from '@/api'
-import './recetas.css'
-
-const mealTypeLabels = {
-  lunch: 'Comida',
-  dinner: 'Cena',
-}
+import RecipeCard from './RecipeCard'
+import MultiSelectField from '@/components/ui/MultiSelectField'
+import RecipeDetailModal from './RecipeDetailModal'
 
 function useDebouncedValue(value, delay = 350) {
-  const [debouncedValue, setDebouncedValue] = useState(value)
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedValue(value), delay)
-    return () => window.clearTimeout(timeout)
-  }, [delay, value])
-
-  return debouncedValue
+    const [debouncedValue, setDebouncedValue] = useState(value)
+    useEffect(() => {
+        const timeout = window.setTimeout(() => setDebouncedValue(value), delay)
+        return () => window.clearTimeout(timeout)
+    }, [delay, value])
+    return debouncedValue
 }
 
-const getResults = (data) => (Array.isArray(data) ? data : data?.results ?? [])
-
-function RecipeCard({ recipe, onEdit, onDelete, deleting }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const tags = recipe.tags ?? []
-  const image = recipe.image ?? recipe.photo ?? recipe.image_url
-
-  return (
-    <article className="recipe-card">
-      <div className="recipe-card__image">
-        {image ? <img src={image} alt="" /> : <PiBowlFood aria-hidden="true" />}
-      </div>
-
-      <div className="recipe-card__content">
-        <h2>{recipe.name}</h2>
-        {recipe.description && <p className="recipe-card__description">{recipe.description}</p>}
-
-        <div className="recipe-card__tags">
-          {recipe.meal_type && <span>{mealTypeLabels[recipe.meal_type]}</span>}
-          {tags.slice(0, 3).map((tag) => (
-            <span key={tag.id ?? tag}>{tag.name ?? tag}</span>
-          ))}
-        </div>
-
-        <div className="recipe-card__meta">
-          <span><PiUsers /> {recipe.servings ?? 2} raciones</span>
-          {recipe.active_time_minutes !== null && recipe.active_time_minutes !== undefined && (
-            <span><PiClock /> {recipe.active_time_minutes} min</span>
-          )}
-        </div>
-      </div>
-
-      <div className="recipe-card__actions">
-        <button
-          type="button"
-          className="icon-button icon-button--plain"
-          aria-label={`Acciones para ${recipe.name}`}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <PiDotsThreeVertical />
-        </button>
-        {menuOpen && (
-          <div className="recipe-menu">
-            <button type="button" onClick={onEdit}>Editar</button>
-            <button type="button" className="recipe-menu__danger" onClick={onDelete} disabled={deleting}>
-              {deleting ? 'Eliminando…' : 'Eliminar'}
-            </button>
-          </div>
-        )}
-      </div>
-    </article>
-  )
-}
-
-function RecipeList() {
-  const navigate = useNavigate()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [mealType, setMealType] = useState('')
-  const [active, setActive] = useState('true')
-  const [ordering, setOrdering] = useState('-updated_at')
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const debouncedSearch = useDebouncedValue(search)
-
-  const params = {
-    page,
-    page_size: 20,
-    ordering,
-    ...(debouncedSearch && { search: debouncedSearch }),
-    ...(mealType && { meal_type: mealType }),
-    ...(active && { is_active: active }),
-  }
-
-  const recipesQuery = useQuery(recipesApi.queries.list(params))
-  const deleteRecipe = useMutation(recipesApi.mutations.remove())
-  const recipes = getResults(recipesQuery.data)
-  const count = recipesQuery.data?.count ?? recipes.length
-  const totalPages = Math.max(1, Math.ceil(count / 20))
-  const handleDelete = (recipe) => {
-    if (window.confirm(`¿Quieres eliminar “${recipe.name}”?`)) {
-      deleteRecipe.mutate(recipe.id)
+export default function RecipeList() {
+    const navigate = useNavigate()
+    const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
+    const [mealType, setMealType] = useState('')
+    const [active, setActive] = useState('true')
+    const [ordering, setOrdering] = useState('-updated_at')
+    const [filtersOpen, setFiltersOpen] = useState(false)
+    const [selectedRecipe, setSelectedRecipe] = useState(null)
+    const debouncedSearch = useDebouncedValue(search)
+    const recipesQuery = useQuery(
+        recipesApi.queries.list({
+            page,
+            page_size: 20,
+            ordering,
+            ...(debouncedSearch && { search: debouncedSearch }),
+            ...(mealType && { meal_type: mealType }),
+            ...(active && { is_active: active }),
+        }),
+    )
+    const deleteRecipe = useMutation(recipesApi.mutations.remove())
+    const recipes = Array.isArray(recipesQuery.data)
+        ? recipesQuery.data
+        : (recipesQuery.data?.results ?? [])
+    const totalPages = Math.max(
+        1,
+        Math.ceil((recipesQuery.data?.count ?? recipes.length) / 20),
+    )
+    const handleDelete = (recipe) => {
+        if (window.confirm(`¿Quieres eliminar “${recipe.name}”?`))
+            deleteRecipe.mutate(recipe.id)
     }
-  }
-
-  return (
-    <section className="recipes-screen">
-      <header className="recipes-header">
-        <div className="recipes-title">
-          <span className="recipes-title__icon"><PiBowlFood /></span>
-          <h1>Recetas</h1>
-        </div>
-        <button type="button" className="add-recipe-button" onClick={() => navigate('/recetas/nueva')} aria-label="Crear receta">
-          <PiPlus />
-        </button>
-      </header>
-
-      <div className="recipe-search-row">
-        <label className="recipe-search">
-          <PiMagnifyingGlass aria-hidden="true" />
-            <input
-                value={search}
-                onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(1)
-                }}
-                placeholder="Buscar recetas…"
-                aria-label="Buscar recetas"
-            />
-        </label>
-        <button
-          type="button"
-          className={`filter-button ${filtersOpen ? 'filter-button--active' : ''}`}
-          onClick={() => setFiltersOpen((open) => !open)}
-          aria-label="Mostrar filtros"
-          aria-expanded={filtersOpen}
+    const filters = [
+        {
+            id: 'meal-type',
+            label: 'Tipo de comida',
+            value: mealType,
+            set: setMealType,
+            options: [
+                ['', 'Todos'],
+                ['lunch', 'Comida'],
+                ['dinner', 'Cena'],
+            ],
+        },
+        {
+            id: 'active',
+            label: 'Estado',
+            value: active,
+            set: setActive,
+            options: [
+                ['', 'Todos'],
+                ['true', 'Activas'],
+                ['false', 'Inactivas'],
+            ],
+        },
+        {
+            id: 'ordering',
+            label: 'Ordenar',
+            value: ordering,
+            set: setOrdering,
+            options: [
+                ['-updated_at', 'Última actualización'],
+                ['name', 'Nombre A–Z'],
+                ['-name', 'Nombre Z–A'],
+            ],
+        },
+    ]
+    return (
+        <Box
+            as="section"
+            minH="100%"
+            color="#302d28"
+            px={{ base: '15px', sm: '22px' }}
+            pt="7"
+            pb="6"
         >
-          <PiFunnel />
-        </button>
-      </div>
-
-      {filtersOpen && (
-         <div className="recipe-filters">
-          <label>
-            Tipo de comida
-            <select value={mealType} onChange={(event) => {
-              setMealType(event.target.value)
-              setPage(1)
-            }}>
-              <option value="">Todos</option>
-              <option value="lunch">Comida</option>
-              <option value="dinner">Cena</option>
-            </select>
-          </label>
-          <label>
-            Estado
-            <select value={active} onChange={(event) => {
-              setActive(event.target.value)
-              setPage(1)
-            }}>
-              <option value="">Todos</option>
-              <option value="true">Activas</option>
-              <option value="false">Inactivas</option>
-            </select>
-          </label>
-          <label>
-            Ordenar
-            <select value={ordering} onChange={(event) => {
-              setOrdering(event.target.value)
-              setPage(1)
-            }}>
-              <option value="-updated_at">Última actualización</option>
-              <option value="name">Nombre A–Z</option>
-              <option value="-name">Nombre Z–A</option>
-            </select>
-          </label>
-        </div>
-      )}
-
-      {recipesQuery.isPending && (
-        <div className="recipe-state" role="status"><span className="recipe-spinner" />Cargando recetas…</div>
-      )}
-
-      {recipesQuery.isError && (
-        <div className="recipe-state recipe-state--error" role="alert">
-          <p>No hemos podido cargar las recetas.</p>
-          <button type="button" onClick={() => recipesQuery.refetch()}>Volver a intentar</button>
-        </div>
-      )}
-
-      {!recipesQuery.isPending && !recipesQuery.isError && recipes.length === 0 && (
-        <div className="recipe-state recipe-empty">
-          <PiBowlFood />
-          <h2>{search ? 'No hay resultados' : 'Tu recetario está vacío'}</h2>
-          <p>{search ? 'Prueba con otra búsqueda o cambia los filtros.' : 'Crea tu primera receta para verla aquí.'}</p>
-          {!search && <button type="button" onClick={() => navigate('/recetas/nueva')}>Crear receta</button>}
-        </div>
-      )}
-
-      <div className="recipe-list">
-        {recipes.map((recipe) => (
-          <RecipeCard
-            key={recipe.id}
-            recipe={recipe}
-            onEdit={() => navigate(`/recetas/${recipe.id}/editar`)}
-            onDelete={() => handleDelete(recipe)}
-            deleting={deleteRecipe.isPending && deleteRecipe.variables === recipe.id}
-          />
-        ))}
-      </div>
-
-      {deleteRecipe.isError && (
-        <p className="recipe-delete-error" role="alert">No se ha podido eliminar la receta.</p>
-      )}
-
-      {totalPages > 1 && (
-        <nav className="recipe-pagination" aria-label="Paginación de recetas">
-          <button type="button" disabled={!recipesQuery.data?.previous} onClick={() => setPage((value) => value - 1)}>
-            <PiCaretLeft /> Anterior
-          </button>
-          <span>Página {page} de {totalPages}</span>
-          <button type="button" disabled={!recipesQuery.data?.next} onClick={() => setPage((value) => value + 1)}>
-            Siguiente <PiCaretRight />
-          </button>
-        </nav>
-      )}
-    </section>
-  )
+            <Flex as="header" align="center" justify="space-between" mb="5">
+                <Flex align="center" gap="2.5">
+                    <Badge
+                        p="1.5"
+                        bg="#fff0d9"
+                        color="#c5854f"
+                        borderRadius="9px"
+                        fontSize="20px"
+                    >
+                        <PiBowlFood />
+                    </Badge>
+                    <Heading as="h1" fontSize="23px">
+                        Recetas
+                    </Heading>
+                </Flex>
+                <IconButton
+                    aria-label="Crear receta"
+                    bg="#559b55"
+                    color="white"
+                    borderRadius="12px"
+                    onClick={() => navigate('/recetas/nueva')}
+                >
+                    <PiPlus />
+                </IconButton>
+            </Flex>
+            <Flex gap="2" mb="3.5">
+                <Flex
+                    flex="1"
+                    minW="0"
+                    align="center"
+                    gap="2"
+                    px="3"
+                    bg="#fffdf9"
+                    border="1px solid #e7dfd3"
+                    borderRadius="12px"
+                    _focusWithin={{ borderColor: '#397c3d' }}
+                >
+                    <PiMagnifyingGlass aria-hidden="true" />
+                    <Input
+                        value={search}
+                        onChange={(event) => {
+                            setSearch(event.target.value)
+                            setPage(1)
+                        }}
+                        placeholder="Buscar recetas…"
+                        aria-label="Buscar recetas"
+                        variant="flushed"
+                        border="0"
+                        h="46px"
+                    />
+                </Flex>
+                <IconButton
+                    aria-label="Mostrar filtros"
+                    aria-expanded={filtersOpen}
+                    aria-controls="recipe-filters"
+                    h="46px"
+                    w="46px"
+                    border="1px solid #e7dfd3"
+                    borderRadius="12px"
+                    bg={filtersOpen ? '#e9f2df' : '#fffdf9'}
+                    color={filtersOpen ? '#397c3d' : '#4d4942'}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                >
+                    <PiFunnel />
+                </IconButton>
+            </Flex>
+            {filtersOpen && (
+                <Grid
+                    id="recipe-filters"
+                    templateColumns={{
+                        base: '1fr',
+                        sm: 'repeat(3, minmax(0, 1fr))',
+                    }}
+                    gap="2.5"
+                    mb="3.5"
+                    p="3"
+                    bg="#fffdf9"
+                    border="1px solid #e7dfd3"
+                    borderRadius="13px"
+                >
+                    {filters.map((filter) => (
+                        <Box key={filter.id} minW="0">
+                            <Text
+                                as="label"
+                                htmlFor={`recipe-${filter.id}`}
+                                fontSize="11px"
+                                fontWeight="700"
+                                color="#777168"
+                            >
+                                {filter.label}
+                            </Text>
+                            <MultiSelectField
+                                isMulti={false}
+                                isClearable={false}
+                                inputId={`recipe-${filter.id}`}
+                                instanceId={`recipe-${filter.id}`}
+                                options={filter.options.map(
+                                    ([value, label]) => ({ value, label }),
+                                )}
+                                value={{
+                                    value: filter.value,
+                                    label: filter.options.find(
+                                        ([value]) => value === filter.value,
+                                    )?.[1],
+                                }}
+                                onChange={(option) => {
+                                    filter.set(option.value)
+                                    setPage(1)
+                                }}
+                            />
+                        </Box>
+                    ))}
+                </Grid>
+            )}
+            {recipesQuery.isPending && (
+                <Flex
+                    minH="260px"
+                    align="center"
+                    justify="center"
+                    gap="3"
+                    role="status"
+                >
+                    <Spinner size="sm" color="#559b55" /> Cargando recetas…
+                </Flex>
+            )}
+            {recipesQuery.isError && (
+                <Stack
+                    minH="260px"
+                    align="center"
+                    justify="center"
+                    role="alert"
+                >
+                    <Text>No hemos podido cargar las recetas.</Text>
+                    <Button onClick={() => recipesQuery.refetch()}>
+                        Volver a intentar
+                    </Button>
+                </Stack>
+            )}
+            {!recipesQuery.isPending &&
+                !recipesQuery.isError &&
+                recipes.length === 0 && (
+                    <Stack
+                        minH="260px"
+                        align="center"
+                        justify="center"
+                        textAlign="center"
+                        gap="3"
+                    >
+                        <Box fontSize="60px" color="#d29a68">
+                            <PiBowlFood />
+                        </Box>
+                        <Heading as="h2" size="md">
+                            {search
+                                ? 'No hay resultados'
+                                : 'Tu recetario está vacío'}
+                        </Heading>
+                        <Text color="#777168" fontSize="13px">
+                            {search
+                                ? 'Prueba con otra búsqueda o cambia los filtros.'
+                                : 'Crea tu primera receta para verla aquí.'}
+                        </Text>
+                        {!search && (
+                            <Button
+                                bg="#559b55"
+                                color="white"
+                                onClick={() => navigate('/recetas/nueva')}
+                            >
+                                Crear receta
+                            </Button>
+                        )}
+                    </Stack>
+                )}
+            <Grid gap="3">
+                {recipes.map((recipe) => (
+                    <RecipeCard
+                        key={recipe.id}
+                        recipe={recipe}
+                        onOpen={() => setSelectedRecipe(recipe)}
+                        onEdit={() => navigate(`/recetas/${recipe.id}/editar`)}
+                        onDelete={() => handleDelete(recipe)}
+                        deleting={
+                            deleteRecipe.isPending &&
+                            deleteRecipe.variables === recipe.id
+                        }
+                    />
+                ))}
+            </Grid>
+            {deleteRecipe.isError && (
+                <Text mt="3" color="red.600" role="alert" textAlign="center">
+                    No se ha podido eliminar la receta.
+                </Text>
+            )}
+            {totalPages > 1 && (
+                <Flex
+                    as="nav"
+                    aria-label="Paginación de recetas"
+                    align="center"
+                    justify="space-between"
+                    gap="2"
+                    mt="5"
+                    wrap="wrap"
+                >
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!recipesQuery.data?.previous}
+                        onClick={() => setPage((value) => value - 1)}
+                    >
+                        <PiCaretLeft /> Anterior
+                    </Button>
+                    <Text fontSize="12px" color="#777168">
+                        Página {page} de {totalPages}
+                    </Text>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!recipesQuery.data?.next}
+                        onClick={() => setPage((value) => value + 1)}
+                    >
+                        Siguiente <PiCaretRight />
+                    </Button>
+                </Flex>
+            )}
+            <RecipeDetailModal
+                recipe={selectedRecipe}
+                onClose={() => setSelectedRecipe(null)}
+            />
+        </Box>
+    )
 }
-
-export default RecipeList
