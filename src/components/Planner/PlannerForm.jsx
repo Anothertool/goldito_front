@@ -20,6 +20,7 @@ import {
 } from 'react-icons/pi'
 import { componentsApi, mealPlansApi, recipesApi } from '@/api'
 import MultiSelectField from '@/components/ui/MultiSelectField'
+import IngredientSearchSelect from '@/components/Ingredients/IngredientSearchSelect'
 import PlannerRules from './PlannerRules'
 
 const card = {
@@ -114,6 +115,9 @@ function PlannerForm({ initialValues, isGenerating, error, onGenerate }) {
     const [components, setComponents] = useState(
         initialValues.priority_components ?? [],
     )
+    const [ingredients, setIngredients] = useState(
+        initialValues.priority_ingredient_options ?? [],
+    )
     const submit = (event) => {
         event.preventDefault()
         if (isGenerating || !startDate || !rulesQuery.isSuccess) return
@@ -122,6 +126,10 @@ function PlannerForm({ initialValues, isGenerating, error, onGenerate }) {
             days: Number(days),
             priority_recipes: recipes.map(Number),
             priority_components: components.map(Number),
+            priority_ingredients: ingredients.map((option) =>
+                Number(option.value),
+            ),
+            priority_ingredient_options: ingredients,
         })
     }
     return (
@@ -239,6 +247,20 @@ function PlannerForm({ initialValues, isGenerating, error, onGenerate }) {
                     onChange={setComponents}
                     disabled={isGenerating}
                 />
+                <Field.Root {...card} disabled={isGenerating}>
+                    <Field.Label htmlFor="priority_ingredients">
+                        Ingredientes prioritarios (opcional)
+                    </Field.Label>
+                    <IngredientSearchSelect
+                        isMulti
+                        inputId="priority_ingredients"
+                        instanceId="priority_ingredients"
+                        value={ingredients}
+                        onChange={(selected) => setIngredients(selected ?? [])}
+                        isDisabled={isGenerating}
+                        placeholder="Buscar ingredientes…"
+                    />
+                </Field.Root>
                 {error && (
                     <Text
                         role="alert"

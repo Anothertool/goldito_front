@@ -22,7 +22,8 @@ import {
     PiMagnifyingGlass,
     PiPlus,
 } from 'react-icons/pi'
-import { recipesApi } from '@/api'
+import { recipeTagsApi, recipesApi } from '@/api'
+import IngredientSearchSelect from '@/components/Ingredients/IngredientSearchSelect'
 import RecipeCard from './RecipeCard'
 import MultiSelectField from '@/components/ui/MultiSelectField'
 import RecipeDetailModal from './RecipeDetailModal'
@@ -43,6 +44,8 @@ export default function RecipeList() {
     const [mealType, setMealType] = useState('')
     const [active, setActive] = useState('true')
     const [ordering, setOrdering] = useState('-updated_at')
+    const [selectedIngredients, setSelectedIngredients] = useState([])
+    const [selectedTags, setSelectedTags] = useState([])
     const [filtersOpen, setFiltersOpen] = useState(false)
     const [selectedRecipe, setSelectedRecipe] = useState(null)
     const debouncedSearch = useDebouncedValue(search)
@@ -54,8 +57,22 @@ export default function RecipeList() {
             ...(debouncedSearch && { search: debouncedSearch }),
             ...(mealType && { meal_type: mealType }),
             ...(active && { is_active: active }),
+            ...(selectedIngredients.length && {
+                ingredients: selectedIngredients
+                    .map((option) => option.value)
+                    .join(','),
+            }),
+            ...(selectedTags.length && {
+                tags: selectedTags.map((option) => option.value).join(','),
+            }),
         }),
     )
+    const tagsQuery = useQuery(
+        recipeTagsApi.queries.list({ page_size: 100, ordering: 'name' }),
+    )
+    const tags = Array.isArray(tagsQuery.data)
+        ? tagsQuery.data
+        : (tagsQuery.data?.results ?? [])
     const deleteRecipe = useMutation(recipesApi.mutations.remove())
     const recipes = Array.isArray(recipesQuery.data)
         ? recipesQuery.data
@@ -63,6 +80,13 @@ export default function RecipeList() {
     const totalPages = Math.max(
         1,
         Math.ceil((recipesQuery.data?.count ?? recipes.length) / 20),
+    )
+    const hasFilters = Boolean(
+        search ||
+        mealType ||
+        active !== 'true' ||
+        selectedIngredients.length ||
+        selectedTags.length,
     )
     const handleDelete = (recipe) => {
         if (window.confirm(`¿Quieres eliminar “${recipe.name}”?`))
@@ -183,7 +207,8 @@ export default function RecipeList() {
                     id="recipe-filters"
                     templateColumns={{
                         base: '1fr',
-                        sm: 'repeat(3, minmax(0, 1fr))',
+                        sm: 'repeat(2, minmax(0, 1fr))',
+                        lg: 'repeat(3, minmax(0, 1fr))',
                     }}
                     gap="2.5"
                     mb="3.5"
@@ -224,6 +249,59 @@ export default function RecipeList() {
                             />
                         </Box>
                     ))}
+                    <Box minW="0">
+                        <Text
+                            as="label"
+                            htmlFor="recipe-ingredients"
+                            fontSize="11px"
+                            fontWeight="700"
+                            color="#777168"
+                        >
+                            Ingredientes
+                        </Text>
+                        <IngredientSearchSelect
+                            isMulti
+                            inputId="recipe-ingredients"
+                            instanceId="recipe-ingredients"
+                            value={selectedIngredients}
+                            onChange={(options) => {
+                                setSelectedIngredients(options ?? [])
+                                setPage(1)
+                            }}
+                            placeholder="Buscar ingredientes"
+                        />
+                    </Box>
+                    <Box minW="0">
+                        <Text
+                            as="label"
+                            htmlFor="recipe-tags"
+                            fontSize="11px"
+                            fontWeight="700"
+                            color="#777168"
+                        >
+                            Etiquetas
+                        </Text>
+                        <MultiSelectField
+                            inputId="recipe-tags"
+                            instanceId="recipe-tags-filter"
+                            options={tags.map((tag) => ({
+                                value: tag.id,
+                                label: tag.name,
+                            }))}
+                            value={selectedTags}
+                            onChange={(options) => {
+                                setSelectedTags(options ?? [])
+                                setPage(1)
+                            }}
+                            isLoading={tagsQuery.isFetching}
+                            noOptionsMessage={() =>
+                                tagsQuery.isError
+                                    ? 'No se pudieron cargar las etiquetas'
+                                    : 'Sin resultados'
+                            }
+                            placeholder="Seleccionar etiquetas"
+                        />
+                    </Box>
                 </Grid>
             )}
             {recipesQuery.isPending && (
@@ -264,16 +342,16 @@ export default function RecipeList() {
                             <PiBowlFood />
                         </Box>
                         <Heading as="h2" size="md">
-                            {search
+                            {hasFilters
                                 ? 'No hay resultados'
                                 : 'Tu recetario está vacío'}
                         </Heading>
                         <Text color="#777168" fontSize="13px">
-                            {search
+                            {hasFilters
                                 ? 'Prueba con otra búsqueda o cambia los filtros.'
                                 : 'Crea tu primera receta para verla aquí.'}
                         </Text>
-                        {!search && (
+                        {!hasFilters && (
                             <Button
                                 bg="#559b55"
                                 color="white"

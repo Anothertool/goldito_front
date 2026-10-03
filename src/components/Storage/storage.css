@@ -90,6 +90,10 @@
     background: linear-gradient(140deg, #fff2ef, #f7dddc);
 }
 
+.storage-summary__item--ingredients {
+    background: linear-gradient(140deg, #f2f7e8, #e1edcf);
+}
+
 .storage-summary__item span {
     display: inline-flex;
     align-items: center;
@@ -145,6 +149,11 @@
 .storage-card__image--recipe {
     color: #a35f46;
     background: linear-gradient(145deg, #ffe8d4, #f6c7b5);
+}
+
+.storage-card__image--ingredient {
+    color: #638347;
+    background: linear-gradient(145deg, #eff6d9, #d8e9b5);
 }
 
 .storage-card__image .storage-card__flake {
@@ -440,7 +449,7 @@
 
 .storage-segmented {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -547,6 +556,12 @@
     color: #845d51;
     background: #fff0ec;
     border-color: #efd7d0;
+}
+
+.storage-selection--ingredient {
+    color: #638347;
+    background: #f1f7e7;
+    border-color: #dce9c7;
 }
 
 .storage-selection > svg {

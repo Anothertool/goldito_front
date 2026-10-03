@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
 import { Box, Button, Flex, Grid, Heading, Input, Text } from '@chakra-ui/react'
-import { useQuery } from '@tanstack/react-query'
 import { FieldArray, getIn } from 'formik'
 import { PiMinus, PiPlus } from 'react-icons/pi'
 import MultiSelectField from '@/components/ui/MultiSelectField'
-import { ingredientsApi } from '@/api'
+import IngredientSearchSelect from './IngredientSearchSelect'
 import { createEmptyIngredient } from './utils'
 
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta']
@@ -49,39 +47,7 @@ function ErrorText({ formik, name }) {
     )
 }
 
-function useDebouncedValue(value, delay = 300) {
-    const [debouncedValue, setDebouncedValue] = useState(value)
-
-    useEffect(() => {
-        const timeoutId = window.setTimeout(
-            () => setDebouncedValue(value.trim()),
-            delay,
-        )
-        return () => window.clearTimeout(timeoutId)
-    }, [delay, value])
-
-    return debouncedValue
-}
-
-const getResults = (data) =>
-    Array.isArray(data) ? data : (data?.results ?? [])
-
 function IngredientSelect({ formik, item, rowName, index, invalid }) {
-    const [inputValue, setInputValue] = useState('')
-    const debouncedSearch = useDebouncedValue(inputValue)
-    const searchQuery = useQuery(ingredientsApi.queries.search(debouncedSearch))
-    const options = useMemo(() => {
-        if (
-            debouncedSearch.length < 3 ||
-            debouncedSearch !== inputValue.trim()
-        ) {
-            return []
-        }
-        return getResults(searchQuery.data).map((ingredient) => ({
-            value: ingredient.id,
-            label: ingredient.name,
-        }))
-    }, [debouncedSearch, inputValue, searchQuery.data])
     const value = item.ingredient_id
         ? { value: item.ingredient_id, label: item.name }
         : item.name
@@ -89,7 +55,7 @@ function IngredientSelect({ formik, item, rowName, index, invalid }) {
           : null
 
     return (
-        <MultiSelectField
+        <IngredientSearchSelect
             creatable
             isMulti={false}
             invalid={invalid}
@@ -97,33 +63,12 @@ function IngredientSelect({ formik, item, rowName, index, invalid }) {
             inputId={`${rowName}-select`}
             aria-label={`Ingrediente ${index + 1}`}
             value={value}
-            options={options}
-            inputValue={inputValue}
-            isLoading={searchQuery.isFetching}
-            isClearable
-            filterOption={null}
-            placeholder="Buscar ingrediente"
-            formatCreateLabel={(text) =>
-                `Usar "${text}" como nuevo ingrediente`
-            }
-            noOptionsMessage={() => {
-                if (inputValue.trim().length < 3) {
-                    return 'Escribe al menos 3 letras'
-                }
-                if (searchQuery.isError) return 'No se pudo buscar'
-                if (searchQuery.isFetching) return 'Buscando…'
-                return 'Sin resultados'
-            }}
-            onInputChange={(nextValue, action) => {
-                if (action.action === 'input-change') setInputValue(nextValue)
-            }}
             onChange={(option) => {
                 formik.setFieldValue(
                     `${rowName}.ingredient_id`,
                     option && !option.__isNew__ ? option.value : '',
                 )
                 formik.setFieldValue(`${rowName}.name`, option?.label ?? '')
-                setInputValue('')
             }}
             onBlur={() => formik.setFieldTouched(`${rowName}.name`, true)}
         />

@@ -9,6 +9,7 @@ export const initialValues = {
     item_type: 'component',
     component: '',
     recipe: '',
+    ingredient: '',
     portions: 1,
     frozen_at: toLocalDate(new Date()),
     best_before: '',
@@ -21,7 +22,7 @@ const optionalDate = Yup.date()
 
 export const validationSchema = Yup.object({
     item_type: Yup.string()
-        .oneOf(['component', 'recipe'])
+        .oneOf(['component', 'recipe', 'ingredient'])
         .required('Selecciona qué quieres congelar'),
     component: Yup.number()
         .transform((value, originalValue) =>
@@ -42,6 +43,16 @@ export const validationSchema = Yup.object({
             is: 'recipe',
             then: (schema) =>
                 schema.required('Selecciona una receta').positive(),
+        }),
+    ingredient: Yup.number()
+        .transform((value, originalValue) =>
+            originalValue === '' ? null : value,
+        )
+        .nullable()
+        .when('item_type', {
+            is: 'ingredient',
+            then: (schema) =>
+                schema.required('Selecciona un ingrediente').positive(),
         }),
     portions: Yup.number()
         .typeError('Indica las porciones')
@@ -65,11 +76,17 @@ export function getStorageInitialValues(item) {
 
     const component = getId(item.component_id ?? item.component)
     const recipe = getId(item.recipe_id ?? item.recipe)
+    const ingredient = getId(item.ingredient_id ?? item.ingredient)
 
     return {
-        item_type: component ? 'component' : 'recipe',
+        item_type: component
+            ? 'component'
+            : ingredient
+              ? 'ingredient'
+              : 'recipe',
         component: component ? Number(component) : '',
         recipe: recipe ? Number(recipe) : '',
+        ingredient: ingredient ? Number(ingredient) : '',
         portions: item.portions ?? 1,
         frozen_at: item.frozen_at ?? initialValues.frozen_at,
         best_before: item.best_before ?? '',
@@ -78,11 +95,14 @@ export function getStorageInitialValues(item) {
 }
 
 export function toStoragePayload(values) {
-    const isComponent = values.item_type === 'component'
-
     return {
-        component: isComponent ? Number(values.component) : null,
-        recipe: isComponent ? null : Number(values.recipe),
+        component:
+            values.item_type === 'component' ? Number(values.component) : null,
+        recipe: values.item_type === 'recipe' ? Number(values.recipe) : null,
+        ingredient:
+            values.item_type === 'ingredient'
+                ? Number(values.ingredient)
+                : null,
         portions: Number(values.portions),
         frozen_at: values.frozen_at,
         best_before: values.best_before || null,

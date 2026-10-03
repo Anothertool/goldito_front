@@ -3,12 +3,13 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
     PiBowlFood,
+    PiCarrot,
     PiCookingPot,
     PiDotsThreeVertical,
     PiPlus,
     PiSnowflake,
 } from 'react-icons/pi'
-import { componentsApi, recipesApi, storageApi } from '@/api'
+import { componentsApi, ingredientsApi, recipesApi, storageApi } from '@/api'
 import './storage.css'
 
 const getResults = (data) =>
@@ -23,7 +24,7 @@ const formatDate = (value) => {
     )
 }
 
-function getEntity(item, componentsById, recipesById) {
+function getEntity(item, componentsById, recipesById, ingredientsById) {
     const componentValue = item.component_detail ?? item.component
     const componentId = getId(item.component_id ?? componentValue)
 
@@ -35,6 +36,19 @@ function getEntity(item, componentsById, recipesById) {
                 componentValue?.name ??
                 componentsById.get(String(componentId))?.name ??
                 `Componente ${componentId}`,
+        }
+    }
+
+    const ingredientValue = item.ingredient_detail ?? item.ingredient
+    const ingredientId = getId(item.ingredient_id ?? ingredientValue)
+    if (ingredientId) {
+        return {
+            type: 'ingredient',
+            name:
+                item.ingredient_name ??
+                ingredientValue?.name ??
+                ingredientsById.get(String(ingredientId))?.name ??
+                `Ingrediente ${ingredientId}`,
         }
     }
 
@@ -63,6 +77,8 @@ function StorageCard({ item, entity, onEdit, onDelete, deleting }) {
             >
                 {entity.type === 'component' ? (
                     <PiCookingPot />
+                ) : entity.type === 'ingredient' ? (
+                    <PiCarrot />
                 ) : (
                     <PiBowlFood />
                 )}
@@ -71,16 +87,29 @@ function StorageCard({ item, entity, onEdit, onDelete, deleting }) {
             <div className="storage-card__content">
                 <div className="storage-card__title-row">
                     <span>
-                        {entity.type === 'component' ? 'Componente' : 'Receta'}
+                        {entity.type === 'component'
+                            ? 'Componente'
+                            : entity.type === 'ingredient'
+                              ? 'Ingrediente'
+                              : 'Receta'}
                     </span>
                     {bestBeforePassed && <em>Revisar</em>}
                 </div>
                 <h2>{entity.name}</h2>
                 <strong>
                     {Number(item.portions)}{' '}
-                    {Number(item.portions) === 1 ? 'ración' : 'raciones'}
+                    {entity.type === 'ingredient'
+                        ? Number(item.portions) === 1
+                            ? 'unidad'
+                            : 'unidades'
+                        : Number(item.portions) === 1
+                          ? 'ración'
+                          : 'raciones'}
                 </strong>
-                <p>Congelado: {formatDate(item.frozen_at)}</p>
+                <p>
+                    {entity.type === 'ingredient' ? 'Guardado' : 'Congelado'}:{' '}
+                    {formatDate(item.frozen_at)}
+                </p>
                 {item.best_before && (
                     <p>Consumir antes de: {formatDate(item.best_before)}</p>
                 )}
@@ -123,24 +152,34 @@ function StorageList() {
         componentsApi.queries.list({ page_size: 100 }),
     )
     const recipesQuery = useQuery(recipesApi.queries.list({ page_size: 100 }))
+    const ingredientsQuery = useQuery(
+        ingredientsApi.queries.list({ page_size: 100 }),
+    )
     const removeItem = useMutation(storageApi.mutations.remove())
 
     const items = getResults(storageQuery.data)
     const components = getResults(componentsQuery.data)
     const recipes = getResults(recipesQuery.data)
+    const ingredients = getResults(ingredientsQuery.data)
     const componentsById = new Map(
         components.map((item) => [String(item.id), item]),
     )
     const recipesById = new Map(recipes.map((item) => [String(item.id), item]))
+    const ingredientsById = new Map(
+        ingredients.map((item) => [String(item.id), item]),
+    )
     const enrichedItems = items.map((item) => ({
         item,
-        entity: getEntity(item, componentsById, recipesById),
+        entity: getEntity(item, componentsById, recipesById, ingredientsById),
     }))
     const componentCount = enrichedItems.filter(
         ({ entity }) => entity.type === 'component',
     ).length
     const recipeCount = enrichedItems.filter(
         ({ entity }) => entity.type === 'recipe',
+    ).length
+    const ingredientCount = enrichedItems.filter(
+        ({ entity }) => entity.type === 'ingredient',
     ).length
 
     const handleDelete = (item, name) => {
@@ -179,6 +218,12 @@ function StorageList() {
                     </span>
                     <strong>{recipeCount}</strong>
                 </div>
+                <div className="storage-summary__item storage-summary__item--ingredients">
+                    <span>
+                        <PiCarrot /> Ingredientes
+                    </span>
+                    <strong>{ingredientCount}</strong>
+                </div>
             </div>
 
             {storageQuery.isPending && (
@@ -210,8 +255,8 @@ function StorageList() {
                         <PiSnowflake />
                         <h2>El congelador está vacío</h2>
                         <p>
-                            Añade una receta o un componente para tenerlo
-                            siempre a mano.
+                            Añade una receta, un componente o un ingrediente
+                            para tenerlo siempre a mano.
                         </p>
                         <button
                             type="button"
